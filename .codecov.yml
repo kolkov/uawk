@@ -1,0 +1,42 @@
+# Codecov configuration for uawk
+# Documentation: https://docs.codecov.com/docs/codecovyml-reference
+# Validator: https://api.codecov.io/validate
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...100"  # Current coverage: 71%+
+
+  status:
+    project:
+      default:
+        target: 70%           # Minimum project coverage
+        threshold: 5%         # Allow 5% drop from target
+        base: auto
+        informational: false  # Fail if below target
+        only_pulls: false
+
+    patch:
+      default:
+        target: auto          # Auto-detect reasonable target for changes
+        threshold: 10%        # Allow 10% variance for patches
+        base: auto
+        informational: true   # Don't fail PRs, just inform
+        only_pulls: false
+
+  ignore:
+    - "testdata/**"           # Test data files
+    - "**/*_test.go"          # Test files themselves
+    - "tmp/**"                # Temporary files
+    - "cmd/uawk/main.go"      # CLI entry point (minimal logic)
+
+comment:
+  layout: "header, diff, flags, files, footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# GitHub integration
+github_checks:
+  annotations: true

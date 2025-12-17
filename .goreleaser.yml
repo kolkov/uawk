@@ -1,0 +1,116 @@
+version: 2
+
+project_name: uawk
+
+before:
+  hooks:
+    - go test ./...
+
+builds:
+  - id: uawk
+    binary: uawk
+    main: ./cmd/uawk
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64, "386"]
+    # Reproducible builds: https://goreleaser.com/blog/reproducible-builds/
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.CommitDate}}
+    env:
+      - CGO_ENABLED=0
+    # Ignore build errors for unsupported combinations
+    ignore:
+      - goos: darwin
+        goarch: "386"
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: "uawk_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "uawk_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: "🚀 Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: "⚡ Performance"
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: "📝 Documentation"
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 3
+    - title: "🧪 Tests"
+      regexp: "^.*test[(\\w)]*:+.*$"
+      order: 4
+    - title: "🎨 Other"
+      order: 999
+
+release:
+  github:
+    owner: kolkov
+    name: uawk
+  draft: false
+  prerelease: auto
+  mode: append
+  header: |
+    ## uawk {{ .Tag }} ({{ .Date }})
+
+    **High-performance AWK interpreter for Go!**
+
+    8/8 benchmarks faster than GoAWK. Powered by coregex (3-3000x faster regex).
+  footer: |
+    ---
+
+    **Installation**:
+    ```bash
+    # Using go install (recommended):
+    go install github.com/kolkov/uawk/cmd/uawk@{{ .Tag }}
+
+    # Or download binary for your platform above
+    ```
+
+    **Quick Start**:
+    ```bash
+    # Print first column:
+    uawk '{ print $1 }' file.txt
+
+    # Sum numbers:
+    uawk '{ sum += $1 } END { print sum }' numbers.txt
+
+    # Filter lines:
+    uawk '/pattern/ { print }' file.txt
+    ```
+
+    **Documentation**: https://github.com/kolkov/uawk#readme
+
+    **Report Issues**: https://github.com/kolkov/uawk/issues

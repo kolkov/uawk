@@ -1,0 +1,64 @@
+# CODEOWNERS for uawk
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# This file defines individuals or teams responsible for code in this repository.
+# Code owners are automatically requested for review when someone opens a pull request
+# that modifies code they own.
+
+# Default owner for everything in the repo
+* @kolkov
+
+# Core AWK interpreter components
+/internal/lexer/ @kolkov
+/internal/parser/ @kolkov
+/internal/ast/ @kolkov
+/internal/semantic/ @kolkov
+/internal/compiler/ @kolkov
+/internal/vm/ @kolkov
+/internal/types/ @kolkov
+/internal/token/ @kolkov
+
+# CLI application
+/cmd/uawk/ @kolkov
+
+# Public API files - Breaking changes require careful review
+/uawk.go @kolkov
+/config.go @kolkov
+/program.go @kolkov
+/errors.go @kolkov
+
+# Examples and benchmarks
+/example_test.go @kolkov
+
+# Test data
+/testdata/ @kolkov
+
+# Documentation - Keep up to date with code changes
+*.md @kolkov
+/docs/ @kolkov
+
+# GitHub configuration and CI/CD
+/.github/ @kolkov
+
+# Code quality and linting configuration
+/.golangci.yml @kolkov
+
+# Tests - Ensure coverage and reliability
+*_test.go @kolkov
+
+# Release management - Version control and changelog
+/CHANGELOG.md @kolkov
+/ROADMAP.md @kolkov
+
+# Contributing guidelines
+/CONTRIBUTING.md @kolkov
+
+# Security policy
+/SECURITY.md @kolkov
+
+# Go module files - Dependency management
+/go.mod @kolkov
+/go.sum @kolkov
+
+# Scripts
+/scripts/ @kolkov

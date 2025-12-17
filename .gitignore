@@ -1,0 +1,27 @@
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Private development
+docs/dev/
+.claude/
+.goco/
+.gode/
+reference/
+tmp/
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+cpu.prof
+default.pgo

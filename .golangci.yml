@@ -1,0 +1,245 @@
+# GolangCI-Lint v2.7 Configuration for uawk - High-Performance AWK Interpreter
+# Based on coregex configuration
+# Documentation: https://golangci-lint.run/docs/configuration/
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  # Enable comprehensive set of linters for production-quality code
+  enable:
+    # Code quality and complexity
+    - gocyclo       # Check cyclomatic complexity
+    - gocognit      # Check cognitive complexity
+    - funlen        # Check function length
+    - nestif        # Reports deeply nested if statements
+
+    # Bug detection
+    - govet         # Standard Go vet
+    - staticcheck   # Comprehensive static analysis
+    - errcheck      # Check that errors are handled
+    - ineffassign   # Detect ineffectual assignments
+
+    # Code style and consistency
+    - misspell      # Check for misspelled words
+    - unconvert     # Remove unnecessary type conversions
+
+    # Performance (critical for AWK interpreter)
+    - prealloc      # Find slice declarations that could be preallocated
+
+    # Code practices
+    - goconst       # Find repeated strings that could be constants
+    - gocritic      # Comprehensive code checker
+    - nakedret      # Checks for naked returns
+
+  settings:
+    govet:
+      enable:
+        - copylocks
+      disable:
+        - fieldalignment  # Memory layout handled manually for hot paths
+
+    gocyclo:
+      # Interpreter code has many case statements
+      min-complexity: 50
+
+    funlen:
+      # VM main loop and parser rules can be long
+      lines: 200
+      statements: 150
+
+    gocognit:
+      # Interpreter algorithms are complex
+      min-complexity: 50
+
+    misspell:
+      locale: US
+
+    nestif:
+      min-complexity: 5
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+
+      disabled-checks:
+        - commentFormatting
+        - whyNoLint
+        - unnamedResult
+        - commentedOutCode
+        - octalLiteral       # 0644 is clearer than 0o644 for file perms
+        - paramTypeCombine   # Explicit types can be clearer
+        - emptyStringTest    # len(s) == 0 is acceptable
+        - ifElseChain        # Sometimes if-else is clearer than switch
+        - builtinShadow      # append param name is acceptable
+        - weakCond           # nil check is sufficient in tests
+
+      settings:
+        hugeParam:
+          sizeThreshold: 256
+
+  # Exclusions
+  exclusions:
+    rules:
+      # Test files - allow more flexibility
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - funlen
+          - errcheck
+          - goconst
+          - gocognit
+
+      # VM main loop - inherently complex
+      - path: internal/vm/vm\.go
+        linters:
+          - gocyclo      # Switch dispatch is complex
+          - funlen       # Main loop is long
+          - gocognit     # Opcode handling complexity
+          - errcheck     # Print/Write in VM loop
+          - gocritic
+          - nestif
+          - staticcheck
+
+      # Parser - grammar rules can be long
+      - path: internal/parser/parser\.go
+        linters:
+          - gocyclo      # Recursive descent complexity
+          - funlen       # Grammar rules are long
+          - gocognit     # Parsing complexity
+
+      # Lexer - token handling
+      - path: internal/lexer/lexer\.go
+        linters:
+          - gocyclo      # Token scanning complexity
+
+      # IO cleanup functions - errors ignored intentionally
+      - path: internal/runtime/io\.go
+        linters:
+          - errcheck     # Cleanup ignores errors
+
+      # CLI - defer cleanup
+      - path: cmd/uawk/main\.go
+        linters:
+          - errcheck     # Defer cleanup ignores errors
+          - gocognit     # CLI parsing is complex
+          - gocritic     # if-else chain is intentional
+          - nestif
+
+      # AST print - debug utility
+      - path: internal/ast/print\.go
+        linters:
+          - errcheck
+
+      # Builtins - many similar functions
+      - path: internal/vm/builtins\.go
+        linters:
+          - funlen       # Builtin registry is long
+          - gocyclo
+          - errcheck     # Flush in fflush
+          - gocognit
+          - nestif       # Sprintf parsing logic
+
+      # Compiler - code generation
+      - path: internal/compiler/compiler\.go
+        linters:
+          - gocyclo
+          - funlen
+          - gocognit
+          - gocritic
+          - nestif
+
+      # Program disassemble - debug output
+      - path: internal/compiler/program\.go
+        linters:
+          - gocognit
+
+      # AST visitor - inherently complex
+      - path: internal/ast/visitor\.go
+        linters:
+          - gocognit
+
+      # Resolver - semantic analysis
+      - path: internal/semantic/resolver\.go
+        linters:
+          - nestif
+          - staticcheck
+
+      # CharClass - performance-critical code
+      - path: internal/runtime/charclass\.go
+        linters:
+          - gocritic     # len() checks are intentional for performance
+          - staticcheck  # nil check pattern is intentional
+          - goconst      # (?s) prefix is intentional
+          - nestif
+
+      # Composite regex
+      - path: internal/runtime/composite\.go
+        linters:
+          - gocritic
+          - nestif
+
+      # Prefilter
+      - path: internal/runtime/prefilter\.go
+        linters:
+          - nestif
+          - staticcheck
+          - gocritic
+
+      # Opcode stringer - big switch
+      - path: internal/compiler/opcode\.go
+        linters:
+          - gocyclo
+          - funlen      # String() has many cases
+
+      # Program disassemble
+      - path: internal/compiler/program\.go
+        linters:
+          - gocyclo
+
+      # Types value - parsing logic
+      - path: internal/types/value\.go
+        linters:
+          - gocyclo
+          - goconst     # nan/inf literals are intentional
+
+      # AST print - debug utility
+      - path: internal/ast/print\.go
+        linters:
+          - gocyclo
+
+      # Semantic checker
+      - path: internal/semantic/checker\.go
+        linters:
+          - gocyclo
+
+      # Unused helper functions (will be used later)
+      - path: internal/semantic/errors\.go
+        linters:
+          - unused
+
+      # Test helpers
+      - path: internal/compiler/compiler_test\.go
+        linters:
+          - unused
+
+      - path: internal/semantic/semantic_test\.go
+        linters:
+          - unused
+          - staticcheck
+
+      # Fuzz test - empty branch is intentional
+      - path: internal/lexer/lexer_fuzz_test\.go
+        linters:
+          - staticcheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false

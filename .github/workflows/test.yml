@@ -1,0 +1,203 @@
+name: Tests
+
+# Testing Strategy:
+# - Tests run on Linux, macOS, and Windows (cross-platform CLI tool)
+# - AWK interpreter with bytecode VM - must work everywhere
+# - Go 1.25+ required (matches go.mod requirement)
+# - Minimal dependencies (only coregex for regex engine)
+#
+# Branch Strategy (Git Flow):
+# - feature/** branches: Development work
+# - bugfix/** branches: Bug fixes
+# - hotfix/** branches: Critical fixes
+# - main branch: Production-ready code (tagged releases)
+# - Pull requests: Must pass all tests before merge
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # Unit tests - Cross-platform
+  unit-tests:
+    name: Unit Tests - ${{ matrix.os }} - Go ${{ matrix.go-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.25']  # Match go.mod requirement
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+        cache: true
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run go vet
+      if: matrix.os == 'ubuntu-latest'
+      run: go vet ./...
+
+    - name: Run unit tests with race detector
+      shell: bash
+      run: go test -short -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.25'
+      uses: codecov/codecov-action@v4
+      continue-on-error: true
+      with:
+        file: ./coverage.txt
+        flags: unittests
+        name: codecov-unit
+
+  # 32-bit build verification (GOARCH=386)
+  build-386:
+    name: Build - Linux 386
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+        cache: true
+
+    - name: Build for 386
+      run: GOARCH=386 go build ./...
+
+    - name: Run tests for 386
+      run: GOARCH=386 go test -short ./...
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    continue-on-error: false  # Strict for production tool
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+        cache: true
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: latest
+        args: --timeout=5m
+
+  # Formatting check
+  formatting:
+    name: Code Formatting
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+        cache: true
+
+    - name: Check formatting
+      run: |
+        if [ -n "$(gofmt -l .)" ]; then
+          echo "ERROR: The following files are not formatted:"
+          gofmt -l .
+          echo ""
+          echo "Run 'go fmt ./...' to fix formatting issues."
+          exit 1
+        fi
+        echo "All files are properly formatted ✓"
+
+  # Benchmarks (informational only, runs on push)
+  # For PR benchmark comparison, see benchmarks.yml
+  benchmarks:
+    name: Benchmarks (Smoke Test)
+    runs-on: ubuntu-latest
+    # Only run on push (not PRs - those use benchmarks.yml for comparison)
+    if: github.event_name == 'push'
+    continue-on-error: true  # Don't fail CI on benchmark failures
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+        cache: true
+
+    - name: Run benchmark smoke test
+      run: |
+        echo "=== Quick Benchmark Smoke Test ==="
+        echo "For detailed comparison, see PR benchmark workflow"
+        echo ""
+
+        # Quick smoke test (1 iteration)
+        go test -bench=BenchmarkVM -benchmem -count=1 ./internal/vm/... || true
+        go test -bench=BenchmarkLexer -benchmem -count=1 ./internal/lexer/... || true
+        go test -bench=BenchmarkParser -benchmem -count=1 ./internal/parser/... || true
+
+  # Build CLI binaries
+  build-cli:
+    name: Build CLI - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            binary: uawk
+          - os: macos-latest
+            binary: uawk
+          - os: windows-latest
+            binary: uawk.exe
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+        cache: true
+
+    - name: Build CLI
+      run: go build -o ${{ matrix.binary }} ./cmd/uawk
+
+    - name: Test CLI help
+      shell: bash
+      run: ./${{ matrix.binary }} --help || ./uawk.exe --help
+
+    - name: Test simple AWK program
+      shell: bash
+      run: |
+        echo "hello world" | ./${{ matrix.binary }} '{ print $1 }' || echo "hello world" | ./uawk.exe '{ print $1 }'
