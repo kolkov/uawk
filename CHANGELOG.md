@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-01-05
+
+### Changed
+- Updated coregex to v0.9.0 with new optimization strategies
+  - UseAhoCorasick: 75-113x faster for large alternations (>8 patterns)
+  - DigitPrefilter: up to 2500x faster for IP address patterns
+  - Paired-byte SIMD: improved rare byte pair searching
+- Added ahocorasick transitive dependency for multi-pattern matching
+
+### Performance
+- regex benchmark: additional improvements from coregex v0.9.0
+- All 7/8 benchmarks faster than GoAWK maintained
+
 ## [0.1.0] - 2025-01-04
 
 ### Added
@@ -38,5 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/kolkov/uawk/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kolkov/uawk/releases/tag/v0.1.0
