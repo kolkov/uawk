@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-01-05
+
+### Changed
+- Updated coregex to v0.9.1 with adaptive DigitPrefilter
+  - Adaptive switching: transitions to DFA after 64 consecutive false positives
+  - Sparse data: maintains 300x speedup via SIMD
+  - Dense data: 3.5x faster with intelligent DFA fallback
+  - No-match scenarios: up to 3000x faster
+
 ## [0.1.1] - 2026-01-05
 
 ### Changed
@@ -51,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/kolkov/uawk/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/kolkov/uawk/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kolkov/uawk/releases/tag/v0.1.0
