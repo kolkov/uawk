@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-01-06
+
+### Changed
+- Updated coregex to v0.9.2 with compile-time strategy selection
+  - Simple digit patterns (≤100 NFA states): DigitPrefilter
+  - Complex digit patterns (>100 NFA states): LazyDFA
+  - Eliminates runtime adaptive tracking overhead
+  - IP pattern matching: **146x faster** vs v0.9.1
+
 ## [0.1.2] - 2026-01-05
 
 ### Changed
@@ -60,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/kolkov/uawk/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/kolkov/uawk/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/kolkov/uawk/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kolkov/uawk/releases/tag/v0.1.0
