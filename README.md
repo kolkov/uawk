@@ -11,7 +11,7 @@ A modern, high-performance AWK interpreter written in Go.
 - **Fast**: Outperforms GoAWK in all benchmarks (up to **19x faster** on regex patterns)
 - **Compatible**: POSIX AWK compliant with GNU AWK extensions
 - **Embeddable**: Clean Go API for embedding in your applications
-- **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.9.1
+- **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.9.5
 - **Minimal**: Zero CGO, easy cross-compilation
 
 ## Installation
@@ -83,24 +83,24 @@ func main() {
 
 ## Benchmarks
 
-uawk v0.1.2 vs GoAWK vs gawk vs mawk on 10MB dataset (lower is better):
+uawk v0.1.4 vs GoAWK vs gawk on 10MB dataset (lower is better):
 
-| Benchmark | uawk | GoAWK | gawk | mawk | vs GoAWK |
-|-----------|------|-------|------|------|----------|
-| alternation | **37ms** | 708ms | 33ms | 31ms | **19x faster** |
-| ipaddr | **49ms** | 140ms | 39ms | 104ms | **2.9x faster** |
-| regex | **78ms** | 248ms | 44ms | 453ms | **3.2x faster** |
-| count | **38ms** | 63ms | 61ms | 44ms | **1.7x faster** |
-| csv | **67ms** | 97ms | 117ms | 91ms | **1.4x faster** |
-| select | **75ms** | 96ms | 140ms | 77ms | **1.3x faster** |
-| sum | **76ms** | 99ms | 117ms | 80ms | **1.3x faster** |
-| groupby | **199ms** | 271ms | 307ms | 144ms | **1.4x faster** |
-| filter | **106ms** | 113ms | 126ms | 98ms | **1.1x faster** |
-| wordcount | **210ms** | 237ms | 299ms | 165ms | **1.1x faster** |
+| Benchmark | uawk | GoAWK | gawk | vs GoAWK |
+|-----------|------|-------|------|----------|
+| alternation | **52ms** | 827ms | 87ms | **16x faster** |
+| regex | **132ms** | 311ms | 395ms | **2.4x faster** |
+| select | **89ms** | 163ms | 262ms | **1.8x faster** |
+| ipaddr | **85ms** | 150ms | 109ms | **1.8x faster** |
+| csv | **82ms** | 122ms | 151ms | **1.5x faster** |
+| count | **75ms** | 95ms | 109ms | **1.3x faster** |
+| groupby | **253ms** | 286ms | 390ms | **1.1x faster** |
+| sum | **110ms** | 125ms | 139ms | **1.1x faster** |
+| filter | **124ms** | 140ms | 169ms | **1.1x faster** |
+| wordcount | **239ms** | 256ms | 547ms | **1.1x faster** |
 
 **uawk wins 10/10 benchmarks vs GoAWK.**
 
-> Benchmarks run on GitHub Actions (Ubuntu, 10 runs median).
+> Benchmarks run locally (Windows, 5 runs median).
 > See [uawk-test](https://github.com/kolkov/uawk-test) for benchmark suite.
 
 ## Building from Source
