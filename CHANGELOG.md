@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-01-07
+
+### Changed
+- Updated coregex to v0.10.0 with Fat Teddy AVX2 prefilter
+  - Fat Teddy: 33-64 patterns at **9+ GB/s** (vs 150 MB/s Aho-Corasick)
+  - **73x faster** for 40-pattern scenarios
+  - Small haystack optimization: **2.4x faster**
+  - 5 patterns now faster than Rust regex (char class, IP, suffix, email, anchored)
+  - Pure Go scalar fallback for non-AVX2 platforms
+
+### Performance
+- alternation: 19x faster vs GoAWK
+- Note: inner literal pattern +53% regression in coregex (under investigation)
+
 ## [0.1.4] - 2026-01-07
 
 ### Changed
@@ -85,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/kolkov/uawk/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/kolkov/uawk/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/kolkov/uawk/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/kolkov/uawk/compare/v0.1.1...v0.1.2
