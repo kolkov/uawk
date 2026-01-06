@@ -11,7 +11,7 @@ A modern, high-performance AWK interpreter written in Go.
 - **Fast**: Outperforms GoAWK in all benchmarks (up to **19x faster** on regex patterns)
 - **Compatible**: POSIX AWK compliant with GNU AWK extensions
 - **Embeddable**: Clean Go API for embedding in your applications
-- **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.9.5
+- **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.10.0
 - **Minimal**: Zero CGO, easy cross-compilation
 
 ## Installation
