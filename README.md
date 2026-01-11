@@ -8,7 +8,7 @@ A modern, high-performance AWK interpreter written in Go.
 
 ## Features
 
-- **Fast**: Outperforms GoAWK in all benchmarks (up to **19x faster** on regex patterns)
+- **Fast**: Outperforms GoAWK in most benchmarks (up to **31x faster** on regex patterns)
 - **Compatible**: POSIX AWK compliant with GNU AWK extensions
 - **Embeddable**: Clean Go API for embedding in your applications
 - **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.10.0
@@ -91,25 +91,38 @@ func main() {
 
 ## Benchmarks
 
-uawk v0.1.4 vs GoAWK vs gawk on 10MB dataset (lower is better):
+uawk v0.1.6 vs GoAWK on 16 regex patterns (lower is better):
 
-| Benchmark | uawk | GoAWK | gawk | vs GoAWK |
-|-----------|------|-------|------|----------|
-| alternation | **52ms** | 827ms | 87ms | **16x faster** |
-| regex | **132ms** | 311ms | 395ms | **2.4x faster** |
-| select | **89ms** | 163ms | 262ms | **1.8x faster** |
-| ipaddr | **85ms** | 150ms | 109ms | **1.8x faster** |
-| csv | **82ms** | 122ms | 151ms | **1.5x faster** |
-| count | **75ms** | 95ms | 109ms | **1.3x faster** |
-| groupby | **253ms** | 286ms | 390ms | **1.1x faster** |
-| sum | **110ms** | 125ms | 139ms | **1.1x faster** |
-| filter | **124ms** | 140ms | 169ms | **1.1x faster** |
-| wordcount | **239ms** | 256ms | 547ms | **1.1x faster** |
+### Small Data (1MB)
 
-**uawk wins 10/10 benchmarks vs GoAWK.**
+| Benchmark | uawk | GoAWK | vs GoAWK |
+|-----------|------|-------|----------|
+| alternation | **12ms** | 95ms | **8x faster** |
+| inner | **11ms** | 40ms | **3.6x faster** |
+| email | **32ms** | 74ms | **2.3x faster** |
+| count | **10ms** | 25ms | **2.5x faster** |
+| ipaddr | **19ms** | 33ms | **1.7x faster** |
+| regex | **26ms** | 41ms | **1.6x faster** |
 
-> Benchmarks run locally (Windows, 5 runs median).
-> See [uawk-test](https://github.com/kolkov/uawk-test) for benchmark suite.
+### Large Data (100MB)
+
+| Benchmark | uawk | GoAWK | vs GoAWK |
+|-----------|------|-------|----------|
+| alternation | **264ms** | 8241ms | **31x faster** |
+| inner | **439ms** | 3577ms | **8x faster** |
+| regex | **1185ms** | 3342ms | **2.8x faster** |
+| email | **2382ms** | 5848ms | **2.5x faster** |
+| ipaddr | **766ms** | 1690ms | **2.2x faster** |
+| select | **983ms** | 1936ms | **2.0x faster** |
+| suffix | **302ms** | 568ms | **1.9x faster** |
+| charclass | **299ms** | 494ms | **1.7x faster** |
+| count | **648ms** | 1018ms | **1.6x faster** |
+
+**uawk wins 13/16 benchmarks vs GoAWK.**
+
+Performance scales with data size - up to **31x faster** on large datasets with Aho-Corasick patterns.
+
+> Benchmarks: Windows, 3 runs median. See [uawk-test](https://github.com/kolkov/uawk-test) for full suite.
 
 ## Building from Source
 
