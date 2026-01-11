@@ -40,6 +40,9 @@ uawk -f script.awk input.txt
 
 # Multiple input files
 uawk '{ print FILENAME, $0 }' file1.txt file2.txt
+
+# Performance mode (faster regex, non-POSIX)
+uawk --no-posix '/pattern/ { print }' file.txt
 ```
 
 ### As a Library
@@ -67,6 +70,11 @@ func main() {
         Variables: map[string]string{"threshold": "100"},
     }
     output, err = uawk.Run(`$2 > threshold { print $1 }`, input, config)
+
+    // Fast mode (non-POSIX regex for better performance)
+    fast := false
+    config = &uawk.Config{POSIXRegex: &fast}
+    output, err = uawk.Run(`/pattern/ { print }`, input, config)
 
     // Compile once, run multiple times
     prog, err := uawk.Compile(`{ sum += $1 } END { print sum }`)

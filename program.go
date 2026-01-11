@@ -3,7 +3,6 @@ package uawk
 import (
 	"bytes"
 	"io"
-	"sync"
 
 	"github.com/kolkov/uawk/internal/compiler"
 	"github.com/kolkov/uawk/internal/vm"
@@ -15,9 +14,6 @@ import (
 type Program struct {
 	compiled *compiler.Program
 	source   string // Original source for debugging
-
-	// Pool of VMs for reuse (optimization for repeated execution)
-	vmPool sync.Pool
 }
 
 // Run executes the compiled program with the given input and configuration.

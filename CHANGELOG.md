@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-01-11
+
+### Added
+- `--posix` / `--no-posix` CLI flags for regex mode selection
+- `POSIXRegex` option in `uawk.Config` for library usage
+- `RegexConfig` and `VMConfig` for fine-grained control
+
+### Performance
+- `--no-posix` mode disables leftmost-longest matching for faster regex
+- Up to 12% improvement on some patterns in fast mode
+
 ## [0.1.5] - 2026-01-07
 
 ### Changed

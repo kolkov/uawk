@@ -187,10 +187,10 @@ func (r *Regex) Split(s string, n int) []string {
 // RegexCache provides thread-safe compiled regex caching with FIFO eviction.
 // Optimized for AWK workloads: lock-free reads via sync.Map, no LRU overhead.
 type RegexCache struct {
-	cache   sync.Map    // map[string]*Regex - lock-free reads
-	orderMu sync.Mutex  // Protects order slice for eviction
-	order   []string    // FIFO order for eviction
-	size    int32       // Approximate size (not atomic - orderMu protects it)
+	cache   sync.Map   // map[string]*Regex - lock-free reads
+	orderMu sync.Mutex // Protects order slice for eviction
+	order   []string   // FIFO order for eviction
+	size    int32      // Approximate size (not atomic - orderMu protects it)
 	maxSize int
 	config  RegexConfig // Configuration for compiled regexes
 }
