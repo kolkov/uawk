@@ -35,6 +35,10 @@ Additional uawk features:
   -i mode           input mode: csv, tsv
   -o mode           output mode: csv, tsv
 
+Performance options:
+  --posix           use POSIX leftmost-longest regex matching (default)
+  --no-posix        use faster leftmost-first regex matching (Perl-like)
+
 Debugging arguments:
   -d                print parsed AST to stderr and exit
   -da               print bytecode assembly to stderr and exit
@@ -60,6 +64,7 @@ func main() {
 	debug := false
 	debugAsm := false
 	debugTypes := false
+	var posixRegex *bool // nil = default (true), explicit true/false from flags
 
 	var i int
 	for i = 1; i < len(os.Args); i++ {
@@ -114,6 +119,12 @@ func main() {
 			debugTypes = true
 		case "-H":
 			header = true
+		case "--posix":
+			t := true
+			posixRegex = &t
+		case "--no-posix":
+			f := false
+			posixRegex = &f
 		case "-h", "--help":
 			fmt.Printf("uawk %s - Ultra AWK Interpreter\n\n%s\n\n%s", version, shortUsage, longUsage)
 			os.Exit(0)
@@ -197,9 +208,10 @@ func main() {
 	defer stdout.Flush()
 
 	config := &uawk.Config{
-		FS:     fieldSep,
-		Output: stdout,
-		Stderr: os.Stderr,
+		FS:         fieldSep,
+		Output:     stdout,
+		Stderr:     os.Stderr,
+		POSIXRegex: posixRegex,
 	}
 
 	// Parse variable assignments

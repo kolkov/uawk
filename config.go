@@ -38,6 +38,12 @@ type Config struct {
 	// Args contains command-line arguments (ARGV).
 	// Args[0] is typically the program name.
 	Args []string
+
+	// POSIXRegex enables POSIX leftmost-longest regex matching.
+	// When true (default), uses AWK/POSIX ERE semantics (slower but compliant).
+	// When false, uses leftmost-first matching (faster, Perl-like).
+	// Set to false for better performance when POSIX compliance is not required.
+	POSIXRegex *bool
 }
 
 // applyDefaults fills in default values for unset Config fields.

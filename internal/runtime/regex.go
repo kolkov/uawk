@@ -10,6 +10,25 @@ import (
 // dotallPrefix is prepended to patterns for AWK semantics (dot matches newline).
 const dotallPrefix = "(?s)"
 
+// RegexConfig controls regex behavior.
+type RegexConfig struct {
+	// POSIX enables leftmost-longest matching (AWK/POSIX ERE semantics).
+	// When false, uses leftmost-first matching (faster, Perl-like).
+	// Default: true for AWK compatibility.
+	POSIX bool
+}
+
+// DefaultConfig returns the default POSIX-compliant configuration.
+func DefaultConfig() RegexConfig {
+	return RegexConfig{POSIX: true}
+}
+
+// FastConfig returns a performance-optimized configuration.
+// Disables POSIX leftmost-longest matching for faster execution.
+func FastConfig() RegexConfig {
+	return RegexConfig{POSIX: false}
+}
+
 // Regex wraps coregex for AWK regex operations.
 // Provides thread-safe cached compilation for performance.
 // Simple character class patterns use fast path (14-22x speedup).
@@ -21,13 +40,22 @@ type Regex struct {
 	charClass *CharClassSearcher // Fast path for simple patterns like \d+, \s+, \w+
 	composite *CompositeSearcher // Fast path for composite patterns like [a-zA-Z]+[0-9]+
 	literals  *LiteralInfo       // Fast rejection for patterns with literal substrings
+	posix     bool               // POSIX leftmost-longest matching enabled
 }
 
-// Compile creates a new Regex from pattern.
+// Compile creates a new Regex from pattern with default POSIX config.
 // AWK semantics: dot matches any character including newlines.
 // Automatically uses fast path for simple character class patterns.
 // Extracts literal substrings for prefiltering when applicable.
 func Compile(pattern string) (*Regex, error) {
+	return CompileWithConfig(pattern, DefaultConfig())
+}
+
+// CompileWithConfig creates a new Regex with specified configuration.
+// AWK semantics: dot matches any character including newlines.
+// When config.POSIX is true, uses leftmost-longest matching (slower but POSIX compliant).
+// When config.POSIX is false, uses leftmost-first matching (faster, Perl-like).
+func CompileWithConfig(pattern string, config RegexConfig) (*Regex, error) {
 	// Prepend dotallPrefix for AWK dotall semantics: . matches \n
 	awkPattern := dotallPrefix + pattern
 
@@ -52,8 +80,11 @@ func Compile(pattern string) (*Regex, error) {
 		return nil, err
 	}
 
-	// AWK uses leftmost-longest matching semantics
-	re.Longest()
+	// POSIX mode: use leftmost-longest matching (AWK/ERE semantics)
+	// Non-POSIX mode: use leftmost-first matching (faster, Perl-like)
+	if config.POSIX {
+		re.Longest()
+	}
 
 	return &Regex{
 		pattern:   pattern,
@@ -61,6 +92,7 @@ func Compile(pattern string) (*Regex, error) {
 		charClass: charClass,
 		composite: composite,
 		literals:  literals,
+		posix:     config.POSIX,
 	}, nil
 }
 
@@ -76,6 +108,11 @@ func MustCompile(pattern string) *Regex {
 // Pattern returns the original pattern string.
 func (r *Regex) Pattern() string {
 	return r.pattern
+}
+
+// IsPOSIX returns true if this regex uses POSIX leftmost-longest matching.
+func (r *Regex) IsPOSIX() bool {
+	return r.posix
 }
 
 // MatchString reports whether s contains any match.
@@ -150,21 +187,28 @@ func (r *Regex) Split(s string, n int) []string {
 // RegexCache provides thread-safe compiled regex caching with FIFO eviction.
 // Optimized for AWK workloads: lock-free reads via sync.Map, no LRU overhead.
 type RegexCache struct {
-	cache   sync.Map   // map[string]*Regex - lock-free reads
-	orderMu sync.Mutex // Protects order slice for eviction
-	order   []string   // FIFO order for eviction
-	size    int32      // Approximate size (not atomic - orderMu protects it)
+	cache   sync.Map    // map[string]*Regex - lock-free reads
+	orderMu sync.Mutex  // Protects order slice for eviction
+	order   []string    // FIFO order for eviction
+	size    int32       // Approximate size (not atomic - orderMu protects it)
 	maxSize int
+	config  RegexConfig // Configuration for compiled regexes
 }
 
-// NewRegexCache creates a cache with specified max size.
+// NewRegexCache creates a cache with specified max size and default POSIX config.
 func NewRegexCache(maxSize int) *RegexCache {
+	return NewRegexCacheWithConfig(maxSize, DefaultConfig())
+}
+
+// NewRegexCacheWithConfig creates a cache with specified max size and config.
+func NewRegexCacheWithConfig(maxSize int, config RegexConfig) *RegexCache {
 	if maxSize <= 0 {
 		maxSize = 100
 	}
 	return &RegexCache{
 		order:   make([]string, 0, maxSize),
 		maxSize: maxSize,
+		config:  config,
 	}
 }
 
@@ -176,8 +220,8 @@ func (c *RegexCache) Get(pattern string) (*Regex, error) {
 		return re.(*Regex), nil
 	}
 
-	// Slow path: compile and cache
-	re, err := Compile(pattern)
+	// Slow path: compile and cache with configured settings
+	re, err := CompileWithConfig(pattern, c.config)
 	if err != nil {
 		return nil, err
 	}
@@ -230,4 +274,9 @@ func (c *RegexCache) Clear() {
 	}
 	c.order = c.order[:0]
 	c.size = 0
+}
+
+// Config returns the cache's regex configuration.
+func (c *RegexCache) Config() RegexConfig {
+	return c.config
 }

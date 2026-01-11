@@ -32,8 +32,8 @@ func (p *Program) Run(input io.Reader, config *Config) (string, error) {
 	}
 	config.applyDefaults()
 
-	// Create or reuse VM
-	v := p.getVM()
+	// Create VM with regex configuration
+	v := p.createVM(config)
 	defer p.putVM(v)
 
 	// Configure VM
@@ -86,12 +86,16 @@ func (p *Program) Source() string {
 	return p.source
 }
 
-// getVM retrieves a VM from the pool or creates a new one.
-func (p *Program) getVM() *vm.VM {
-	if v := p.vmPool.Get(); v != nil {
-		return v.(*vm.VM)
+// createVM creates a new VM with the specified configuration.
+func (p *Program) createVM(config *Config) *vm.VM {
+	// Determine POSIX regex mode (default: true for AWK compatibility)
+	posixRegex := true
+	if config.POSIXRegex != nil {
+		posixRegex = *config.POSIXRegex
 	}
-	return vm.New(p.compiled)
+
+	vmConfig := vm.VMConfig{POSIXRegex: posixRegex}
+	return vm.NewWithConfig(p.compiled, vmConfig)
 }
 
 // putVM returns a VM to the pool for reuse.

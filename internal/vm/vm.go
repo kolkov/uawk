@@ -141,6 +141,25 @@ type CallFrame struct {
 	code      []compiler.Opcode        // Code being executed
 }
 
+// VMConfig holds VM configuration options.
+type VMConfig struct {
+	// POSIXRegex enables POSIX leftmost-longest regex matching.
+	// When true (default), uses AWK/POSIX ERE semantics (slower but compliant).
+	// When false, uses leftmost-first matching (faster, Perl-like).
+	POSIXRegex bool
+}
+
+// DefaultVMConfig returns the default configuration (POSIX compliant).
+func DefaultVMConfig() VMConfig {
+	return VMConfig{POSIXRegex: true}
+}
+
+// FastVMConfig returns a performance-optimized configuration.
+// Disables POSIX regex matching for faster execution.
+func FastVMConfig() VMConfig {
+	return VMConfig{POSIXRegex: false}
+}
+
 // SpecialVars holds AWK special variables.
 type SpecialVars struct {
 	ARGC     int
@@ -161,8 +180,16 @@ type SpecialVars struct {
 	SUBSEP   string
 }
 
-// New creates a new VM for the given compiled program.
+// New creates a new VM for the given compiled program with default POSIX config.
 func New(prog *compiler.Program) *VM {
+	return NewWithConfig(prog, DefaultVMConfig())
+}
+
+// NewWithConfig creates a new VM with the specified configuration.
+func NewWithConfig(prog *compiler.Program, config VMConfig) *VM {
+	// Create regex config from VM config
+	regexConfig := runtime.RegexConfig{POSIX: config.POSIXRegex}
+
 	vm := &VM{
 		program:    prog,
 		stackData:  make([]types.Value, DefaultStackSize),
@@ -173,7 +200,7 @@ func New(prog *compiler.Program) *VM {
 		output:     os.Stdout,
 		ioManager:  runtime.NewIOManager(),
 		regexes:    make([]*runtime.Regex, len(prog.Regexes)),
-		regexCache: runtime.NewRegexCache(1000),
+		regexCache: runtime.NewRegexCacheWithConfig(1000, regexConfig),
 		specials:   newSpecialVars(),
 		randSource: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
