@@ -963,3 +963,63 @@ func BenchmarkVMNoFieldAccess(b *testing.B) {
 		vm.Run()
 	}
 }
+
+// BenchmarkLazyEnviron measures the benefit of lazy ENVIRON loading.
+func BenchmarkLazyEnviron(b *testing.B) {
+	b.Run("VMCreation_NoENVIRON", func(b *testing.B) {
+		// Most AWK programs don't use ENVIRON
+		source := `BEGIN { print "hello" }`
+		prog, _ := parser.Parse(source)
+		resolved, _ := semantic.Resolve(prog)
+		compiled, _ := compiler.Compile(prog, resolved)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			vm := New(compiled)
+			var buf bytes.Buffer
+			vm.SetOutput(&buf)
+			vm.Run()
+		}
+	})
+
+	b.Run("VMCreation_WithENVIRON", func(b *testing.B) {
+		// Programs that access ENVIRON pay the cost once
+		source := `BEGIN { print ENVIRON["PATH"] }`
+		prog, _ := parser.Parse(source)
+		resolved, _ := semantic.Resolve(prog)
+		compiled, _ := compiler.Compile(prog, resolved)
+
+		b.ResetTimer()
+		b.ReportAllocs()
+
+		for i := 0; i < b.N; i++ {
+			vm := New(compiled)
+			var buf bytes.Buffer
+			vm.SetOutput(&buf)
+			vm.Run()
+		}
+	})
+
+	b.Run("LazyEnviron_Get", func(b *testing.B) {
+		// Measure cost of loading ENVIRON once
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			le := NewLazyEnviron()
+			_ = le.Get()
+		}
+	})
+
+	b.Run("LazyEnviron_GetCached", func(b *testing.B) {
+		// Measure cost of accessing already-loaded ENVIRON
+		le := NewLazyEnviron()
+		_ = le.Get() // Pre-load
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = le.Get()
+		}
+	})
+}
