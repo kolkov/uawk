@@ -316,17 +316,21 @@ func analyzeComposite(pattern string) *CompositeSearcher {
 		return nil
 	}
 
-	// Check for * quantifier followed by literal - requires backtracking which we don't support
-	// For example: .*users, [a-z]*test
+	// Check for char class IMMEDIATELY followed by literal where the char class can match the literal.
+	// This requires backtracking which we don't support.
+	// Examples that need backtracking:
+	//   [a-z]+test - plus can match 't', so greedy matching fails
+	//   [a-z.]+\.  - plus can match '.', so greedy matching consumes all dots
+	// Examples that are SAFE:
+	//   [a-z]+\.com - '.' not in [a-z], so [a-z]+ stops at '.', then '.' matches, then 'com' matches
+	//   [a-z]+@test - '@' not in [a-z], so [a-z]+ stops at '@'
 	for i := 0; i < len(parts)-1; i++ {
-		if parts[i].membership != nil && parts[i].minMatch == 0 {
-			// This part has * quantifier (minMatch=0)
-			// Check if any following part is a literal
-			for j := i + 1; j < len(parts); j++ {
-				if parts[j].literal != "" {
-					// * followed by literal - needs backtracking
-					return nil
-				}
+		if parts[i].membership != nil && parts[i+1].literal != "" {
+			// Char class immediately followed by literal
+			firstChar := parts[i+1].literal[0]
+			if parts[i].membership[firstChar] {
+				// Char class can match the literal's first char - needs backtracking
+				return nil
 			}
 		}
 	}
