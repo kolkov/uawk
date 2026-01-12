@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.6] - 2026-01-11
+## [0.1.6] - 2026-01-12
 
 ### Added
 - `--posix` / `--no-posix` CLI flags for regex mode selection
@@ -15,8 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RegexConfig` and `VMConfig` for fine-grained control
 
 ### Performance
+- **VM Performance V2**: Type specialization, opcode fusion, stack optimization
+  - Static type inference for numeric operations
+  - Peephole optimizer for instruction fusion
+  - Optimized stack operations (PeekPop, ReplaceTop)
 - `--no-posix` mode disables leftmost-longest matching for faster regex
 - Up to 12% improvement on some patterns in fast mode
+- **15/16 benchmarks** faster than GoAWK
 
 ## [0.1.5] - 2026-01-07
 
