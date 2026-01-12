@@ -190,8 +190,8 @@ func optimizeCode(code []Opcode) []Opcode {
 			// Track regular jumps
 			if isJumpOpcode(code[oldPos]) && instrLen >= 2 {
 				regularJumps = append(regularJumps, regularJump{
-					newOffsetPos: newPos + 1,  // offset is at position + 1
-					oldOffsetPos: oldPos + 1,  // same for old code
+					newOffsetPos: newPos + 1, // offset is at position + 1
+					oldOffsetPos: oldPos + 1, // same for old code
 				})
 			}
 

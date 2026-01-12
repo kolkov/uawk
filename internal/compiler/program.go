@@ -142,6 +142,8 @@ func (p *Program) Disassemble() string {
 }
 
 // disassembleCode outputs bytecode with proper formatting.
+//
+//nolint:funlen // switch-case disassembler cannot be split without losing readability
 func (p *Program) disassembleCode(sb *strings.Builder, code []Opcode, indent string) {
 	for i := 0; i < len(code); i++ {
 		op := code[i]

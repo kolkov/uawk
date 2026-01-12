@@ -329,15 +329,6 @@ func (vm *VM) peekFloat() float64 {
 	return vm.stackData[vm.sp-1].AsNum()
 }
 
-// pushFloat pushes a float64 directly as a Num Value.
-func (vm *VM) pushFloat(f float64) {
-	if vm.sp >= len(vm.stackData) {
-		vm.growStack()
-	}
-	vm.stackData[vm.sp] = types.Num(f)
-	vm.sp++
-}
-
 // replaceTopFloat replaces the top value with a float64.
 func (vm *VM) replaceTopFloat(f float64) {
 	vm.stackData[vm.sp-1] = types.Num(f)
@@ -350,24 +341,9 @@ func (vm *VM) peekPopFloat() (float64, float64) {
 	return vm.stackData[vm.sp-1].AsNum(), vm.stackData[vm.sp].AsNum()
 }
 
-// popBool pops the top value and returns it as bool.
-func (vm *VM) popBool() bool {
-	vm.sp--
-	return vm.stackData[vm.sp].AsBool()
-}
-
 // replaceTopBool replaces the top value with a bool.
 func (vm *VM) replaceTopBool(b bool) {
 	vm.stackData[vm.sp-1] = types.Bool(b)
-}
-
-// popN returns a view of the top N values and decrements sp.
-// WARNING: The returned slice is a view into the stack data.
-// The caller must not hold the reference after pushing new values.
-// This is an optimization for variadic functions like printf.
-func (vm *VM) popN(n int) []types.Value {
-	vm.sp -= n
-	return vm.stackData[vm.sp : vm.sp+n]
 }
 
 // growStack doubles the stack capacity.

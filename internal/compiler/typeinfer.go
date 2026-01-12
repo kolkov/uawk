@@ -288,23 +288,7 @@ func (ti *typeInferrer) inferStmt(stmt ast.Stmt) {
 // Detects patterns like: for (i=0; i<n; i++)
 func (ti *typeInferrer) inferForLoop(s *ast.ForStmt) {
 	// Check if init is numeric assignment to a variable
-	var loopVar string
-	if s.Init != nil {
-		if exprStmt, ok := s.Init.(*ast.ExprStmt); ok {
-			if assign, ok := exprStmt.Expr.(*ast.AssignExpr); ok {
-				if ident, ok := assign.Left.(*ast.Ident); ok {
-					// Check if RHS is numeric
-					rhsType := ti.inferExpr(assign.Right)
-					if rhsType == TypeInferNum {
-						loopVar = ident.Name
-						key := ti.varKey(loopVar)
-						ti.recordAssignment(key, TypeInferNum)
-						ti.info.NumericLoopVars[key] = true
-					}
-				}
-			}
-		}
-	}
+	loopVar := ti.extractNumericLoopVar(s.Init)
 
 	// Infer condition
 	if s.Cond != nil {
@@ -312,34 +296,88 @@ func (ti *typeInferrer) inferForLoop(s *ast.ForStmt) {
 	}
 
 	// Check post statement (typically i++ or i += 1)
-	if s.Post != nil {
-		if exprStmt, ok := s.Post.(*ast.ExprStmt); ok {
-			switch expr := exprStmt.Expr.(type) {
-			case *ast.UnaryExpr:
-				// i++ or ++i
-				if (expr.Op == token.INCR || expr.Op == token.DECR) && loopVar != "" {
-					if ident, ok := expr.Expr.(*ast.Ident); ok && ident.Name == loopVar {
-						// Confirmed numeric loop pattern
-						key := ti.varKey(loopVar)
-						ti.info.NumericLoopVars[key] = true
-					}
-				}
-			case *ast.AssignExpr:
-				// i += 1 or i = i + 1
-				if ident, ok := expr.Left.(*ast.Ident); ok && ident.Name == loopVar {
-					rhsType := ti.inferExpr(expr.Right)
-					if rhsType == TypeInferNum {
-						key := ti.varKey(loopVar)
-						ti.info.NumericLoopVars[key] = true
-					}
-				}
-			}
-		}
-		ti.inferStmt(s.Post)
-	}
+	ti.checkPostNumericLoop(s.Post, loopVar)
 
 	// Infer body
 	ti.inferStmt(s.Body)
+}
+
+// extractNumericLoopVar extracts the loop variable from init if it's numeric assignment.
+func (ti *typeInferrer) extractNumericLoopVar(init ast.Stmt) string {
+	if init == nil {
+		return ""
+	}
+	exprStmt, ok := init.(*ast.ExprStmt)
+	if !ok {
+		return ""
+	}
+	assign, ok := exprStmt.Expr.(*ast.AssignExpr)
+	if !ok {
+		return ""
+	}
+	ident, ok := assign.Left.(*ast.Ident)
+	if !ok {
+		return ""
+	}
+	// Check if RHS is numeric
+	if ti.inferExpr(assign.Right) != TypeInferNum {
+		return ""
+	}
+	key := ti.varKey(ident.Name)
+	ti.recordAssignment(key, TypeInferNum)
+	ti.info.NumericLoopVars[key] = true
+	return ident.Name
+}
+
+// checkPostNumericLoop checks post statement for numeric loop patterns.
+func (ti *typeInferrer) checkPostNumericLoop(post ast.Stmt, loopVar string) {
+	if post == nil {
+		return
+	}
+	exprStmt, ok := post.(*ast.ExprStmt)
+	if !ok {
+		ti.inferStmt(post)
+		return
+	}
+
+	switch expr := exprStmt.Expr.(type) {
+	case *ast.UnaryExpr:
+		ti.checkUnaryLoopIncrement(expr, loopVar)
+	case *ast.AssignExpr:
+		ti.checkAssignLoopIncrement(expr, loopVar)
+	}
+	ti.inferStmt(post)
+}
+
+// checkUnaryLoopIncrement checks i++ or ++i patterns.
+func (ti *typeInferrer) checkUnaryLoopIncrement(expr *ast.UnaryExpr, loopVar string) {
+	if loopVar == "" {
+		return
+	}
+	if expr.Op != token.INCR && expr.Op != token.DECR {
+		return
+	}
+	ident, ok := expr.Expr.(*ast.Ident)
+	if !ok || ident.Name != loopVar {
+		return
+	}
+	key := ti.varKey(loopVar)
+	ti.info.NumericLoopVars[key] = true
+}
+
+// checkAssignLoopIncrement checks i += 1 or i = i + 1 patterns.
+func (ti *typeInferrer) checkAssignLoopIncrement(expr *ast.AssignExpr, loopVar string) {
+	if loopVar == "" {
+		return
+	}
+	ident, ok := expr.Left.(*ast.Ident)
+	if !ok || ident.Name != loopVar {
+		return
+	}
+	if ti.inferExpr(expr.Right) == TypeInferNum {
+		key := ti.varKey(loopVar)
+		ti.info.NumericLoopVars[key] = true
+	}
 }
 
 // inferExpr infers the type of an expression and returns it.

@@ -12,9 +12,9 @@ func TestOptimizerPatterns(t *testing.T) {
 	tests := []struct {
 		name     string
 		code     string
-		wantOp   Opcode   // Expected fused opcode
-		wantLen  int      // Expected instruction count (rough)
-		location string   // Where to look: "begin", "action-pattern", "action-body", "end"
+		wantOp   Opcode // Expected fused opcode
+		wantLen  int    // Expected instruction count (rough)
+		location string // Where to look: "begin", "action-pattern", "action-body", "end"
 	}{
 		{
 			name:     "FieldIntGreaterNum",
@@ -171,7 +171,8 @@ func TestOptimizerNoChange(t *testing.T) {
 				FieldIntEqualStr, AddFields,
 			}
 
-			var allCode []Opcode
+			// Preallocate with estimated capacity
+			allCode := make([]Opcode, 0, len(compiled.Begin)+len(compiled.End)+256)
 			allCode = append(allCode, compiled.Begin...)
 			for _, a := range compiled.Actions {
 				for _, p := range a.Pattern {
