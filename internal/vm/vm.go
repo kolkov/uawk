@@ -1615,6 +1615,97 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 		case compiler.Halt:
 			return nil
 
+		// =============================================================================
+		// Fused opcodes (peephole optimization - uawk-specific)
+		// These combine multiple instructions into one for better performance.
+		// Not present in GoAWK - unique to uawk.
+		// =============================================================================
+
+		case compiler.JumpGlobalLessNum:
+			// JumpGlobalLessNum globalIdx numIdx offset
+			// Jumps if global[globalIdx] < nums[numIdx]
+			globalIdx := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			offset := int(code[ip])
+			ip++
+			globalVal := vm.scalars[globalIdx].AsNum()
+			numVal := vm.program.Nums[numIdx]
+			if globalVal < numVal {
+				ip += offset
+			}
+
+		case compiler.JumpGlobalGrEqNum:
+			// JumpGlobalGrEqNum globalIdx numIdx offset
+			// Jumps if global[globalIdx] >= nums[numIdx]
+			globalIdx := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			offset := int(code[ip])
+			ip++
+			globalVal := vm.scalars[globalIdx].AsNum()
+			numVal := vm.program.Nums[numIdx]
+			if globalVal >= numVal {
+				ip += offset
+			}
+
+		case compiler.FieldIntGreaterNum:
+			// FieldIntGreaterNum fieldNum numIdx
+			// Pushes 1 if $fieldNum > nums[numIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldNum(fieldNum)
+			numVal := vm.program.Nums[numIdx]
+			vm.push(types.Bool(fieldVal > numVal))
+
+		case compiler.FieldIntLessNum:
+			// FieldIntLessNum fieldNum numIdx
+			// Pushes 1 if $fieldNum < nums[numIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldNum(fieldNum)
+			numVal := vm.program.Nums[numIdx]
+			vm.push(types.Bool(fieldVal < numVal))
+
+		case compiler.FieldIntEqualNum:
+			// FieldIntEqualNum fieldNum numIdx
+			// Pushes 1 if $fieldNum == nums[numIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldNum(fieldNum)
+			numVal := vm.program.Nums[numIdx]
+			vm.push(types.Bool(fieldVal == numVal))
+
+		case compiler.FieldIntEqualStr:
+			// FieldIntEqualStr fieldNum strIdx
+			// Pushes 1 if $fieldNum == strs[strIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			strIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldStr(fieldNum)
+			strVal := vm.program.Strs[strIdx]
+			vm.push(types.Bool(fieldVal == strVal))
+
+		case compiler.AddFields:
+			// AddFields field1 field2
+			// Pushes $field1 + $field2
+			field1 := int(code[ip])
+			ip++
+			field2 := int(code[ip])
+			ip++
+			val1 := vm.getFieldNum(field1)
+			val2 := vm.getFieldNum(field2)
+			vm.push(types.Num(val1 + val2))
+
 		default:
 			return fmt.Errorf("unknown opcode: %d", op)
 		}
@@ -1675,6 +1766,40 @@ func (vm *VM) getField(index int) types.Value {
 		return types.NumStr(vm.fieldsStr[idx]) // From input
 	}
 	return types.Str("")
+}
+
+// getFieldNum returns field as float64 directly (avoids Value boxing).
+// uawk-specific optimization for fused opcodes.
+func (vm *VM) getFieldNum(index int) float64 {
+	if index <= 0 {
+		if index == 0 {
+			return types.ParseNumPrefix(vm.line)
+		}
+		return 0
+	}
+	vm.ensureFields()
+	idx := index - 1
+	if idx < vm.numFields {
+		return types.ParseNumPrefix(vm.fieldsStr[idx])
+	}
+	return 0
+}
+
+// getFieldStr returns field as string directly (avoids Value boxing).
+// uawk-specific optimization for fused opcodes.
+func (vm *VM) getFieldStr(index int) string {
+	if index <= 0 {
+		if index == 0 {
+			return vm.line
+		}
+		return ""
+	}
+	vm.ensureFields()
+	idx := index - 1
+	if idx < vm.numFields {
+		return vm.fieldsStr[idx]
+	}
+	return ""
 }
 
 // setField sets a field value.

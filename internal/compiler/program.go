@@ -332,6 +332,61 @@ func (p *Program) disassembleCode(sb *strings.Builder, code []Opcode, indent str
 				idx := code[i]
 				fmt.Fprintf(sb, " redirect=%s %s[%d]", redirect, scope, idx)
 			}
+		// Fused opcodes (peephole optimization)
+		case JumpGlobalLessNum, JumpGlobalGrEqNum:
+			if i+3 < len(code) {
+				i++
+				globalIdx := code[i]
+				i++
+				numIdx := code[i]
+				i++
+				offset := int(code[i])
+				target := i + offset
+				var cmp string
+				if op == JumpGlobalLessNum {
+					cmp = "<"
+				} else {
+					cmp = ">="
+				}
+				if int(globalIdx) < len(p.ScalarNames) && p.ScalarNames[globalIdx] != "" {
+					fmt.Fprintf(sb, " %s %s %v -> %04d", p.ScalarNames[globalIdx], cmp, p.Nums[numIdx], target)
+				} else {
+					fmt.Fprintf(sb, " global[%d] %s num[%d] -> %04d", globalIdx, cmp, numIdx, target)
+				}
+			}
+		case FieldIntGreaterNum, FieldIntLessNum, FieldIntEqualNum:
+			if i+2 < len(code) {
+				i++
+				fieldNum := code[i]
+				i++
+				numIdx := code[i]
+				var cmp string
+				switch op {
+				case FieldIntGreaterNum:
+					cmp = ">"
+				case FieldIntLessNum:
+					cmp = "<"
+				case FieldIntEqualNum:
+					cmp = "=="
+				}
+				fmt.Fprintf(sb, " $%d %s %v", fieldNum, cmp, p.Nums[numIdx])
+			}
+		case FieldIntEqualStr:
+			if i+2 < len(code) {
+				i++
+				fieldNum := code[i]
+				i++
+				strIdx := code[i]
+				fmt.Fprintf(sb, " $%d == %q", fieldNum, p.Strs[strIdx])
+			}
+		case AddFields:
+			if i+2 < len(code) {
+				i++
+				field1 := code[i]
+				i++
+				field2 := code[i]
+				fmt.Fprintf(sb, " $%d + $%d", field1, field2)
+			}
 		}
 
 		sb.WriteString("\n")

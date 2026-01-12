@@ -312,6 +312,21 @@ func (op Opcode) String() string {
 		return "GetlineArray"
 	case Halt:
 		return "Halt"
+	// Fused opcodes (peephole optimization)
+	case JumpGlobalLessNum:
+		return "JumpGlobalLessNum"
+	case JumpGlobalGrEqNum:
+		return "JumpGlobalGrEqNum"
+	case FieldIntGreaterNum:
+		return "FieldIntGreaterNum"
+	case FieldIntLessNum:
+		return "FieldIntLessNum"
+	case FieldIntEqualNum:
+		return "FieldIntEqualNum"
+	case FieldIntEqualStr:
+		return "FieldIntEqualStr"
+	case AddFields:
+		return "AddFields"
 	default:
 		return fmt.Sprintf("Opcode(%d)", op)
 	}

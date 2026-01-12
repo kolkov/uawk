@@ -86,6 +86,9 @@ func Compile(program string) (*Program, error) {
 		return nil, &CompileError{Message: err.Error()}
 	}
 
+	// Apply peephole optimizations (fuse common instruction patterns)
+	compiler.OptimizeProgram(compiled)
+
 	return &Program{
 		compiled: compiled,
 		source:   program,
