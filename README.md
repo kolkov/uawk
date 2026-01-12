@@ -79,7 +79,7 @@ func main() {
 
 ## Benchmarks
 
-See [uawk-test](https://github.com/kolkov/uawk-test) for benchmark suite and methodology.
+See [uawk-bench](https://github.com/kolkov/uawk-bench) for benchmark suite and methodology.
 
 Results vary by workload. Regex-heavy patterns benefit from coregex optimizations. I/O-bound workloads show smaller differences between implementations.
 
