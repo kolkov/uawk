@@ -8,10 +8,11 @@ A modern, high-performance AWK interpreter written in Go.
 
 ## Features
 
-- **Fast**: Outperforms GoAWK on **15/16 benchmarks** (up to **16x faster** on regex patterns)
+- **Fast**: Outperforms GoAWK on **all 16/16 benchmarks** (up to **16x faster** on regex patterns)
+- **Parallel**: Multi-file processing with `-j N` flag for concurrent execution
 - **Compatible**: POSIX AWK compliant with GNU AWK extensions
 - **Embeddable**: Clean Go API for embedding in your applications
-- **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.10.0
+- **Modern**: Built with Go 1.25+, powered by [coregex](https://github.com/coregx/coregex) v0.10.3
 - **Minimal**: Zero CGO, easy cross-compilation
 
 ## Installation
@@ -43,6 +44,10 @@ uawk '{ print FILENAME, $0 }' file1.txt file2.txt
 
 # Performance mode (faster regex, non-POSIX)
 uawk --no-posix '/pattern/ { print }' file.txt
+
+# Parallel processing (multi-file)
+uawk -j 4 '{ sum += $1 } END { print sum }' *.log
+uawk -j 8 '/error/ { print FILENAME, $0 }' logs/*.txt
 ```
 
 ### As a Library
@@ -96,28 +101,32 @@ uawk vs GoAWK on 16 benchmarks (10MB dataset, lower is better):
 | Benchmark | uawk | GoAWK | vs GoAWK |
 |-----------|------|-------|----------|
 | alternation | **57ms** | 909ms | **16x faster** |
+| email | **32ms** | 340ms | **10.6x faster** |
 | inner | **47ms** | 324ms | **6.9x faster** |
 | ipaddr | **57ms** | 167ms | **2.9x faster** |
 | charclass | **36ms** | 80ms | **2.2x faster** |
-| email | **155ms** | 333ms | **2.1x faster** |
 | version | **63ms** | 134ms | **2.1x faster** |
 | regex | **117ms** | 241ms | **2.1x faster** |
 | select | **105ms** | 157ms | **1.5x faster** |
 | suffix | **42ms** | 61ms | **1.5x faster** |
 | count | **60ms** | 87ms | **1.4x faster** |
-| sum | **95ms** | 119ms | **1.3x faster** |
-| groupby | **236ms** | 284ms | **1.2x faster** |
-| csv | **82ms** | 95ms | **1.2x faster** |
-| filter | **105ms** | 121ms | **1.2x faster** |
 | anchored | **31ms** | 41ms | **1.3x faster** |
+| sum | **95ms** | 119ms | **1.3x faster** |
+| csv | **82ms** | 95ms | **1.2x faster** |
+| groupby | **236ms** | 284ms | **1.2x faster** |
+| filter | **105ms** | 121ms | **1.2x faster** |
+| wordcount | **271ms** | 289ms | **1.1x faster** |
 
-**uawk wins 15/16 benchmarks vs GoAWK.**
+**uawk wins all 16/16 benchmarks vs GoAWK.**
 
 ### Performance Features
 
+- **Parallel Execution**: Multi-file processing with automatic result merging (`-j N`)
+- **Specialized Global Opcodes**: Direct array access without scope dispatch overhead
 - **Static Type Specialization**: Compile-time type inference for numeric operations
 - **Opcode Fusion**: Peephole optimizer combines common instruction sequences
-- **CharClass Fast Path**: Optimized matching for character classes
+- **CompositeSearcher**: Optimized matching for composite patterns (e.g., `[a-z]+@[a-z]+`)
+- **CharClass Fast Path**: Optimized matching for character classes (`\d+`, `[a-z]+`)
 - **PGO Support**: Profile-guided optimization for hot paths
 
 > Benchmarks: Windows, 5 runs median. See [uawk-test](https://github.com/kolkov/uawk-test) for full suite.
@@ -143,7 +152,7 @@ AWK Source → Lexer → Parser → AST → Semantic Analysis → Type Inference
 - **Lexer**: Context-sensitive tokenizer with UTF-8 support
 - **Parser**: Recursive descent parser with comprehensive error messages
 - **Type Inference**: Static analysis for numeric type specialization
-- **Compiler**: Generates optimized bytecode (~100 opcodes including fused ops)
+- **Compiler**: Generates optimized bytecode (~110 opcodes including fused ops)
 - **Optimizer**: Peephole optimizer for instruction fusion
 - **VM**: Stack-based virtual machine with typed operations
 
@@ -161,9 +170,11 @@ AWK Source → Lexer → Parser → AST → Semantic Analysis → Type Inference
 - I/O redirection (>, >>, |, getline)
 
 ### Extensions
+- `-j N` parallel execution for multi-file processing
 - `-c` flag for Unicode character operations
-- CSV/TSV input/output modes (planned)
+- `--posix` / `--no-posix` regex mode selection
 - Debug flags (-d, -da, -dt)
+- CSV/TSV input/output modes (planned)
 
 ## License
 

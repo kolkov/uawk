@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/kolkov/uawk"
@@ -38,11 +39,14 @@ Additional uawk features:
 Performance options:
   --posix           use POSIX leftmost-longest regex matching (default)
   --no-posix        use faster leftmost-first regex matching (Perl-like)
+  -j N              use N parallel workers (default: 1 = sequential)
+                    parallel execution is automatic for suitable programs
 
 Debugging arguments:
   -d                print parsed AST to stderr and exit
   -da               print bytecode assembly to stderr and exit
   -dt               print type information to stderr and exit
+  -dp               print parallel safety analysis to stderr and exit
 
 Other:
   -h, --help        show this help message
@@ -50,6 +54,7 @@ Other:
 `
 )
 
+//nolint:gocyclo,funlen // CLI argument parsing is inherently complex
 func main() {
 	// Parse command line arguments manually rather than using the
 	// "flag" package, so we can support flags with no space between
@@ -64,7 +69,9 @@ func main() {
 	debug := false
 	debugAsm := false
 	debugTypes := false
+	debugParallel := false
 	var posixRegex *bool // nil = default (true), explicit true/false from flags
+	parallelWorkers := 1 // Default: sequential execution
 
 	var i int
 	for i = 1; i < len(os.Args); i++ {
@@ -117,6 +124,18 @@ func main() {
 			debugAsm = true
 		case "-dt":
 			debugTypes = true
+		case "-dp":
+			debugParallel = true
+		case "-j":
+			if i+1 >= len(os.Args) {
+				errorExitf("flag needs an argument: -j")
+			}
+			i++
+			n, err := strconv.Atoi(os.Args[i])
+			if err != nil || n < 1 {
+				errorExitf("invalid number of workers: %s", os.Args[i])
+			}
+			parallelWorkers = n
 		case "-H":
 			header = true
 		case "--posix":
@@ -135,7 +154,7 @@ func main() {
 			fmt.Println("  regex:  coregex")
 			os.Exit(0)
 		default:
-			// Handle flags with no space: -F:, -ffile, -vvar=val, etc.
+			// Handle flags with no space: -F:, -ffile, -vvar=val, -j4, etc.
 			switch {
 			case strings.HasPrefix(arg, "-F"):
 				fieldSep = arg[2:]
@@ -147,6 +166,12 @@ func main() {
 				outputMode = arg[2:]
 			case strings.HasPrefix(arg, "-v"):
 				vars = append(vars, arg[2:])
+			case strings.HasPrefix(arg, "-j"):
+				n, err := strconv.Atoi(arg[2:])
+				if err != nil || n < 1 {
+					errorExitf("invalid number of workers: %s", arg[2:])
+				}
+				parallelWorkers = n
 			default:
 				errorExitf("flag provided but not defined: %s", arg)
 			}
@@ -202,6 +227,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Type printing not yet implemented")
 		os.Exit(0)
 	}
+	if debugParallel {
+		analysis := prog.CanParallelize("\n")
+		fmt.Fprintln(os.Stderr, "=== Parallel Safety Analysis ===")
+		fmt.Fprintf(os.Stderr, "Can parallelize: %v\n", analysis.CanParallelize)
+		fmt.Fprintf(os.Stderr, "Safety level: %v\n", analysis.Safety)
+		fmt.Fprintf(os.Stderr, "Has aggregation: %v\n", analysis.HasAggregation)
+		if len(analysis.AggregatedVars) > 0 {
+			fmt.Fprintf(os.Stderr, "Aggregated vars: %v\n", analysis.AggregatedVars)
+		}
+		if len(analysis.AggregatedArrays) > 0 {
+			fmt.Fprintf(os.Stderr, "Aggregated arrays: %v\n", analysis.AggregatedArrays)
+		}
+		os.Exit(0)
+	}
 
 	// Build configuration with buffered output for performance
 	stdout := bufio.NewWriter(os.Stdout)
@@ -212,6 +251,7 @@ func main() {
 		Output:     stdout,
 		Stderr:     os.Stderr,
 		POSIXRegex: posixRegex,
+		Parallel:   parallelWorkers,
 	}
 
 	// Parse variable assignments

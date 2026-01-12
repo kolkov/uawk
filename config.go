@@ -44,6 +44,16 @@ type Config struct {
 	// When false, uses leftmost-first matching (faster, Perl-like).
 	// Set to false for better performance when POSIX compliance is not required.
 	POSIXRegex *bool
+
+	// Parallel enables parallel execution with the specified number of workers.
+	// When > 1, the program is executed in parallel if it is safe to do so.
+	// When 0 or 1, sequential execution is used (default).
+	// Note: Parallel execution has limitations - see CanParallelize().
+	Parallel int
+
+	// ChunkSize is the approximate size in bytes of each input chunk
+	// when parallel execution is enabled. Default: 4MB (4 * 1024 * 1024).
+	ChunkSize int
 }
 
 // applyDefaults fills in default values for unset Config fields.

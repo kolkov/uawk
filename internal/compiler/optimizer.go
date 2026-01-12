@@ -412,16 +412,21 @@ func instructionLength(code []Opcode, i int) int {
 		LoadSpecial, StoreSpecial, FieldInt,
 		Jump, JumpTrue, JumpFalse, JumpEqual, JumpNotEq,
 		JumpLess, JumpLessEq, JumpGreater, JumpGrEq,
-		CallBuiltin, Nulls, IndexMulti, ConcatMulti:
+		CallBuiltin, Nulls, IndexMulti, ConcatMulti,
+		ArrayGetGlobal, ArraySetGlobal, ArrayDeleteGlobal, ArrayInGlobal:
 		return 2
 
 	case IncrGlobal, IncrLocal, IncrSpecial, AugGlobal, AugLocal, AugSpecial,
-		CallNative, Print, Printf, Getline, GetlineField:
+		CallNative, Print, Printf, Getline, GetlineField,
+		IncrArrayGlobal, AugArrayGlobal:
 		return 3
 
 	case ArrayGet, ArraySet, ArrayDelete, ArrayIn, CallSplit, CallSplitSep,
 		CallLength, CallSprintf:
 		return 3
+
+	case IncrArray, AugArray:
+		return 4
 
 	case GetlineVar, GetlineArray:
 		return 4

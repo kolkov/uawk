@@ -326,13 +326,16 @@ func TestAnalyzeComposite(t *testing.T) {
 		{"lower_upper", `[a-z]+[A-Z]+`, true},
 		{"escape_bracket", `\d+[a-z]+`, true},
 
-		// With literals (NEW!)
-		{"literal_between", `[a-z]+@[a-z]+`, true},
-		{"email_simple", `[a-z]+@[a-z]+\.[a-z]+`, true},
-		{"prefix_literal", `user[0-9]+`, true},
-		{"suffix_literal", `[a-z]+test`, true},
-		{"multi_literal", `[a-z]+abc[0-9]+`, true},
-		{"escaped_literal", `[a-z]+\.com`, true},
+		// With literals - safe when char class can't match immediately following literal
+		{"literal_between", `[a-z]+@[a-z]+`, true},      // '@' not in [a-z]
+		{"email_simple", `[a-z]+@[a-z]+\.[a-z]+`, true}, // '@' and '.' not in [a-z]
+		{"prefix_literal", `user[0-9]+`, true},          // 'u' not in [0-9]
+		{"escaped_literal", `[a-z]+\.com`, true},        // '.' not in [a-z]
+
+		// Should NOT be composite (char class can match following literal - needs backtracking)
+		{"suffix_literal_overlap", `[a-z]+test`, false},     // 't' is in [a-z]
+		{"multi_literal_overlap", `[a-z]+abc[0-9]+`, false}, // 'a' is in [a-z]
+		{"dot_in_class_overlap", `[a-z.]+\.`, false},        // '.' is in [a-z.]
 
 		// Should NOT be composite (single part - handled by charClass)
 		{"single_digit", `\d+`, false},
@@ -352,6 +355,51 @@ func TestAnalyzeComposite(t *testing.T) {
 			gotComposite := result != nil
 			if gotComposite != tt.isComposite {
 				t.Errorf("analyzeComposite(%q) composite=%v, want %v", tt.pattern, gotComposite, tt.isComposite)
+			}
+		})
+	}
+}
+
+// TestCompositeMatchingCorrectness verifies that patterns produce correct matches
+// whether handled by composite fast path or coregex fallback.
+// This catches bugs where composite detection is correct but matching is wrong.
+func TestCompositeMatchingCorrectness(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		input   string
+		want    bool
+	}{
+		// Safe composite patterns
+		{"email_at", `[a-z]+@[a-z]+`, "user@host", true},
+		{"email_full", `[a-z]+@[a-z]+\.[a-z]+`, "user@example.com", true},
+		{"no_at", `[a-z]+@[a-z]+`, "noatsymbol", false},
+
+		// Patterns that need coregex (char class overlaps with following literal)
+		{"suffix_match", `[a-z]+test`, "hellotest", true},
+		{"suffix_nomatch", `[a-z]+test`, "hello", false},
+		{"dot_class_match", `[a-z.]+\.com`, "example.com", true},
+		{"dot_class_email", `[a-zA-Z0-9_.+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+`, "test@example.com", true},
+		{"dot_class_complex", `[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+`, "example.com", true},
+
+		// Escaped literals
+		{"escaped_dot", `[a-z]+\.txt`, "file.txt", true},
+		{"escaped_dot_nomatch", `[a-z]+\.txt`, "filetxt", false},
+
+		// Multiple char classes
+		{"alpha_digit", `[a-zA-Z]+[0-9]+`, "abc123", true},
+		{"alpha_digit_nomatch", `[a-zA-Z]+[0-9]+`, "abc", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := Compile(tt.pattern)
+			if err != nil {
+				t.Fatalf("Compile(%q) error: %v", tt.pattern, err)
+			}
+			got := re.MatchString(tt.input)
+			if got != tt.want {
+				t.Errorf("MatchString(%q, %q) = %v, want %v", tt.pattern, tt.input, got, tt.want)
 			}
 		})
 	}
