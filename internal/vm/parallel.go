@@ -49,10 +49,10 @@ type ParallelExecutor struct {
 	vmConfig VMConfig
 
 	// Aggregation state (protected by mutex)
-	mu          sync.Mutex
-	scalars     []types.Value            // Initial scalar values from BEGIN
-	arrays      []map[string]types.Value // Initial array values from BEGIN
-	totalNR int // Total records processed
+	mu      sync.Mutex
+	scalars []types.Value            // Initial scalar values from BEGIN
+	arrays  []map[string]types.Value // Initial array values from BEGIN
+	totalNR int                      // Total records processed
 
 	// Analysis results for smart aggregation
 	analysis *ParallelAnalysis

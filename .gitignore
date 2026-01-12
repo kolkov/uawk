@@ -25,3 +25,5 @@ tmp/
 coverage.txt
 cpu.prof
 default.pgo
+# Claude temp files
+*-cwd
