@@ -311,6 +311,41 @@ func (vm *VM) stackPosition() int {
 	return vm.sp
 }
 
+// =============================================================================
+// Typed Stack Operations (uawk-specific optimization)
+// These avoid boxing/unboxing overhead for numeric-heavy workloads.
+// Not present in GoAWK - unique to uawk for performance.
+// =============================================================================
+
+// popFloat pops the top value and returns it as float64.
+// Avoids creating intermediate Value for numeric operations.
+func (vm *VM) popFloat() float64 {
+	vm.sp--
+	return vm.stackData[vm.sp].AsNum()
+}
+
+// peekFloat returns the top value as float64 without removing it.
+func (vm *VM) peekFloat() float64 {
+	return vm.stackData[vm.sp-1].AsNum()
+}
+
+// replaceTopFloat replaces the top value with a float64.
+func (vm *VM) replaceTopFloat(f float64) {
+	vm.stackData[vm.sp-1] = types.Num(f)
+}
+
+// peekPopFloat returns (second-from-top as float, top as float) and pops top.
+// Optimized for binary numeric operations.
+func (vm *VM) peekPopFloat() (float64, float64) {
+	vm.sp--
+	return vm.stackData[vm.sp-1].AsNum(), vm.stackData[vm.sp].AsNum()
+}
+
+// replaceTopBool replaces the top value with a bool.
+func (vm *VM) replaceTopBool(b bool) {
+	vm.stackData[vm.sp-1] = types.Bool(b)
+}
+
 // growStack doubles the stack capacity.
 func (vm *VM) growStack() {
 	newData := make([]types.Value, len(vm.stackData)*2)
@@ -1101,36 +1136,35 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			vm.push(types.Str(strings.Join(parts, "")))
 
 		case compiler.Add:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(a.AsNum() + b.AsNum()))
+			// Optimized: use typed stack ops to avoid boxing/unboxing overhead
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a + b)
 
 		case compiler.Subtract:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(a.AsNum() - b.AsNum()))
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a - b)
 
 		case compiler.Multiply:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(a.AsNum() * b.AsNum()))
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a * b)
 
 		case compiler.Divide:
-			a, b := vm.peekPop()
-			bNum := b.AsNum()
-			if bNum == 0 {
+			a, b := vm.peekPopFloat()
+			if b == 0 {
 				return fmt.Errorf("division by zero")
 			}
-			vm.replaceTop(types.Num(a.AsNum() / bNum))
+			vm.replaceTopFloat(a / b)
 
 		case compiler.Power:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(math.Pow(a.AsNum(), b.AsNum())))
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(math.Pow(a, b))
 
 		case compiler.Modulo:
-			a, b := vm.peekPop()
-			bNum := b.AsNum()
-			if bNum == 0 {
+			a, b := vm.peekPopFloat()
+			if b == 0 {
 				return fmt.Errorf("division by zero")
 			}
-			vm.replaceTop(types.Num(math.Mod(a.AsNum(), bNum)))
+			vm.replaceTopFloat(math.Mod(a, b))
 
 		case compiler.Equal:
 			a, b := vm.peekPop()
@@ -1227,16 +1261,20 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			}
 
 		case compiler.UnaryMinus:
-			vm.replaceTop(types.Num(-vm.peek().AsNum()))
+			// Optimized: use typed stack ops to avoid boxing/unboxing
+			vm.replaceTopFloat(-vm.peekFloat())
 
 		case compiler.UnaryPlus:
-			vm.replaceTop(types.Num(vm.peek().AsNum()))
+			// Optimized: forces numeric conversion using typed ops
+			vm.replaceTopFloat(vm.peekFloat())
 
 		case compiler.Not:
-			vm.replaceTop(types.Bool(!vm.peek().AsBool()))
+			// Optimized: use typed stack ops
+			vm.replaceTopBool(!vm.stackData[vm.sp-1].AsBool())
 
 		case compiler.Boolean:
-			vm.replaceTop(types.Bool(vm.peek().AsBool()))
+			// Optimized: use typed stack ops
+			vm.replaceTopBool(vm.stackData[vm.sp-1].AsBool())
 
 		case compiler.Jump:
 			offset := int(code[ip])
@@ -1553,6 +1591,234 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 		case compiler.Halt:
 			return nil
 
+		// =============================================================================
+		// Fused opcodes (peephole optimization - uawk-specific)
+		// These combine multiple instructions into one for better performance.
+		// Not present in GoAWK - unique to uawk.
+		// =============================================================================
+
+		case compiler.JumpGlobalLessNum:
+			// JumpGlobalLessNum globalIdx numIdx offset
+			// Jumps if global[globalIdx] < nums[numIdx]
+			globalIdx := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			offset := int(code[ip])
+			ip++
+			globalVal := vm.scalars[globalIdx].AsNum()
+			numVal := vm.program.Nums[numIdx]
+			if globalVal < numVal {
+				ip += offset
+			}
+
+		case compiler.JumpGlobalGrEqNum:
+			// JumpGlobalGrEqNum globalIdx numIdx offset
+			// Jumps if global[globalIdx] >= nums[numIdx]
+			globalIdx := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			offset := int(code[ip])
+			ip++
+			globalVal := vm.scalars[globalIdx].AsNum()
+			numVal := vm.program.Nums[numIdx]
+			if globalVal >= numVal {
+				ip += offset
+			}
+
+		case compiler.FieldIntGreaterNum:
+			// FieldIntGreaterNum fieldNum numIdx
+			// Pushes 1 if $fieldNum > nums[numIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldNum(fieldNum)
+			numVal := vm.program.Nums[numIdx]
+			vm.push(types.Bool(fieldVal > numVal))
+
+		case compiler.FieldIntLessNum:
+			// FieldIntLessNum fieldNum numIdx
+			// Pushes 1 if $fieldNum < nums[numIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldNum(fieldNum)
+			numVal := vm.program.Nums[numIdx]
+			vm.push(types.Bool(fieldVal < numVal))
+
+		case compiler.FieldIntEqualNum:
+			// FieldIntEqualNum fieldNum numIdx
+			// Pushes 1 if $fieldNum == nums[numIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			numIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldNum(fieldNum)
+			numVal := vm.program.Nums[numIdx]
+			vm.push(types.Bool(fieldVal == numVal))
+
+		case compiler.FieldIntEqualStr:
+			// FieldIntEqualStr fieldNum strIdx
+			// Pushes 1 if $fieldNum == strs[strIdx], else 0
+			fieldNum := int(code[ip])
+			ip++
+			strIdx := int(code[ip])
+			ip++
+			fieldVal := vm.getFieldStr(fieldNum)
+			strVal := vm.program.Strs[strIdx]
+			vm.push(types.Bool(fieldVal == strVal))
+
+		case compiler.AddFields:
+			// AddFields field1 field2
+			// Pushes $field1 + $field2
+			field1 := int(code[ip])
+			ip++
+			field2 := int(code[ip])
+			ip++
+			val1 := vm.getFieldNum(field1)
+			val2 := vm.getFieldNum(field2)
+			vm.push(types.Num(val1 + val2))
+
+		// =============================================================================
+		// Typed numeric opcodes (P1-003 static type specialization)
+		// These opcodes are emitted when the compiler proves both operands are numeric.
+		// They skip type checking and work directly with float64 values.
+		// Significant performance improvement for numeric-heavy workloads.
+		// =============================================================================
+
+		case compiler.AddNum:
+			// Typed addition: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a + b)
+
+		case compiler.SubNum:
+			// Typed subtraction: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a - b)
+
+		case compiler.MulNum:
+			// Typed multiplication: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a * b)
+
+		case compiler.DivNum:
+			// Typed division: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			if b == 0 {
+				return fmt.Errorf("division by zero")
+			}
+			vm.replaceTopFloat(a / b)
+
+		case compiler.ModNum:
+			// Typed modulo: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			if b == 0 {
+				return fmt.Errorf("division by zero")
+			}
+			vm.replaceTopFloat(math.Mod(a, b))
+
+		case compiler.PowNum:
+			// Typed power: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(math.Pow(a, b))
+
+		case compiler.NegNum:
+			// Typed unary minus: operand known to be numeric
+			vm.replaceTopFloat(-vm.peekFloat())
+
+		case compiler.LessNum:
+			// Typed less-than: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a < b)
+
+		case compiler.LessEqNum:
+			// Typed less-or-equal: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a <= b)
+
+		case compiler.GreaterNum:
+			// Typed greater-than: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a > b)
+
+		case compiler.GreaterEqNum:
+			// Typed greater-or-equal: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a >= b)
+
+		case compiler.EqualNum:
+			// Typed equality: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a == b)
+
+		case compiler.NotEqualNum:
+			// Typed inequality: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a != b)
+
+		case compiler.JumpLessNum:
+			// Typed conditional jump: jump if a < b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a < b {
+				ip += offset
+			}
+
+		case compiler.JumpLessEqNum:
+			// Typed conditional jump: jump if a <= b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a <= b {
+				ip += offset
+			}
+
+		case compiler.JumpGreaterNum:
+			// Typed conditional jump: jump if a > b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a > b {
+				ip += offset
+			}
+
+		case compiler.JumpGreaterEqNum:
+			// Typed conditional jump: jump if a >= b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a >= b {
+				ip += offset
+			}
+
+		case compiler.JumpEqualNum:
+			// Typed conditional jump: jump if a == b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a == b {
+				ip += offset
+			}
+
+		case compiler.JumpNotEqualNum:
+			// Typed conditional jump: jump if a != b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a != b {
+				ip += offset
+			}
+
 		default:
 			return fmt.Errorf("unknown opcode: %d", op)
 		}
@@ -1613,6 +1879,40 @@ func (vm *VM) getField(index int) types.Value {
 		return types.NumStr(vm.fieldsStr[idx]) // From input
 	}
 	return types.Str("")
+}
+
+// getFieldNum returns field as float64 directly (avoids Value boxing).
+// uawk-specific optimization for fused opcodes.
+func (vm *VM) getFieldNum(index int) float64 {
+	if index <= 0 {
+		if index == 0 {
+			return types.ParseNumPrefix(vm.line)
+		}
+		return 0
+	}
+	vm.ensureFields()
+	idx := index - 1
+	if idx < vm.numFields {
+		return types.ParseNumPrefix(vm.fieldsStr[idx])
+	}
+	return 0
+}
+
+// getFieldStr returns field as string directly (avoids Value boxing).
+// uawk-specific optimization for fused opcodes.
+func (vm *VM) getFieldStr(index int) string {
+	if index <= 0 {
+		if index == 0 {
+			return vm.line
+		}
+		return ""
+	}
+	vm.ensureFields()
+	idx := index - 1
+	if idx < vm.numFields {
+		return vm.fieldsStr[idx]
+	}
+	return ""
 }
 
 // setField sets a field value.
