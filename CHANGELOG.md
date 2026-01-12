@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Parallel execution** with `-j N` flag for concurrent multi-file processing
+  - Automatic detection of parallel-safe programs (no BEGIN/END, no shared state)
+  - Worker pool processes files concurrently with output ordering preserved
+  - Speedup scales with CPU cores on I/O-bound workloads
+
+### Changed
+- Updated coregex to v0.10.3
+
+### Fixed
+- **CompositeSearcher backtracking bug** for overlapping patterns
+  - Patterns like `[a-z.]+\.com` now match correctly
+  - Email pattern was silently failing due to greedy char class consuming literal dots
+  - Added overlap detection: reject patterns where char class can match following literal's first char
+
+### Performance
+- **Specialized global array opcodes** eliminate scope switch overhead
+  - New opcodes: `ArrayGetGlobal`, `ArraySetGlobal`, `ArrayDeleteGlobal`, `ArrayInGlobal`, `IncrArrayGlobal`, `AugArrayGlobal`
+  - wordcount benchmark: 281ms → 271ms (7% improvement, now beats GoAWK)
+- **email benchmark**: 181ms → 32ms (5.7x faster, was broken before fix)
+- **All 16/16 benchmarks now faster than GoAWK**
+
 ## [0.1.6] - 2026-01-11
 
 ### Added
@@ -110,7 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/kolkov/uawk/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/kolkov/uawk/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/kolkov/uawk/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/kolkov/uawk/compare/v0.1.2...v0.1.3
