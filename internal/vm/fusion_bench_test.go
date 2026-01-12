@@ -198,3 +198,124 @@ func BenchmarkNestedLoops(b *testing.B) {
 		}
 	})
 }
+
+// =============================================================================
+// Type Specialization Benchmarks (P1-003)
+// These benchmarks specifically test the typed numeric opcodes (AddNum, SubNum,
+// LessNum, etc.) vs generic opcodes (Add, Subtract, Less, etc.)
+// The key difference is that typed opcodes skip type checking at runtime.
+// =============================================================================
+
+// BenchmarkTypedArithmetic tests typed vs generic arithmetic operations.
+// This benchmark uses only numeric literals, which type inference proves are
+// numeric at compile time, allowing specialized opcodes to be used.
+func BenchmarkTypedArithmetic(b *testing.B) {
+	// Pure numeric computation - ideal case for type specialization
+	code := `BEGIN {
+		a = 1.5
+		b = 2.5
+		for (i = 0; i < 100000; i++) {
+			c = a + b
+			c = c - a
+			c = c * b
+			c = c / a
+		}
+		print c
+	}`
+
+	compiled := compileAndOptimize(code)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		vm := New(compiled)
+		var out strings.Builder
+		vm.SetOutput(&out)
+		_ = vm.Run()
+	}
+}
+
+// BenchmarkTypedComparison tests typed vs generic comparison operations.
+// Loop counters are inferred as numeric, enabling JumpLessNum etc.
+func BenchmarkTypedComparison(b *testing.B) {
+	// Comparison-heavy loop - benefits from typed jump opcodes
+	code := `BEGIN {
+		count = 0
+		for (i = 0; i < 100000; i++) {
+			if (i < 50000) count++
+			if (i > 25000) count++
+			if (i == 75000) count++
+		}
+		print count
+	}`
+
+	compiled := compileAndOptimize(code)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		vm := New(compiled)
+		var out strings.Builder
+		vm.SetOutput(&out)
+		_ = vm.Run()
+	}
+}
+
+// BenchmarkTypedUnaryNeg tests typed unary minus (NegNum vs UnaryMinus).
+func BenchmarkTypedUnaryNeg(b *testing.B) {
+	code := `BEGIN {
+		x = 5.0
+		for (i = 0; i < 100000; i++) {
+			x = -x
+		}
+		print x
+	}`
+
+	compiled := compileAndOptimize(code)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		vm := New(compiled)
+		var out strings.Builder
+		vm.SetOutput(&out)
+		_ = vm.Run()
+	}
+}
+
+// BenchmarkTypedPower tests typed power operation (PowNum vs Power).
+func BenchmarkTypedPower(b *testing.B) {
+	code := `BEGIN {
+		for (i = 0; i < 100000; i++) {
+			x = 2 ^ 10
+		}
+		print x
+	}`
+
+	compiled := compileAndOptimize(code)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		vm := New(compiled)
+		var out strings.Builder
+		vm.SetOutput(&out)
+		_ = vm.Run()
+	}
+}
+
+// BenchmarkTypedModulo tests typed modulo (ModNum vs Modulo).
+func BenchmarkTypedModulo(b *testing.B) {
+	code := `BEGIN {
+		for (i = 0; i < 100000; i++) {
+			x = i % 17
+		}
+		print x
+	}`
+
+	compiled := compileAndOptimize(code)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		vm := New(compiled)
+		var out strings.Builder
+		vm.SetOutput(&out)
+		_ = vm.Run()
+	}
+}

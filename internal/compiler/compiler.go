@@ -40,6 +40,10 @@ func Compile(prog *ast.Program, resolved *semantic.ResolveResult) (compiledProg 
 		regexes: make(map[string]int),
 	}
 
+	// Run type inference for static type specialization (P1-003 optimization).
+	// This enables specialized numeric opcodes for provably-typed expressions.
+	typeInfo := InferTypes(prog, resolved)
+
 	// Phase 1: Pre-compile function metadata.
 	// Use funcInfo.Index to ensure correct placement regardless of map iteration order.
 	p.Functions = make([]Function, len(resolved.Functions))
@@ -73,7 +77,7 @@ func Compile(prog *ast.Program, resolved *semantic.ResolveResult) (compiledProg 
 			}
 		}
 		if astFunc != nil && astFunc.Body != nil {
-			c := newCompiler(resolved, p, indexes, funcInfo.Name)
+			c := newCompiler(resolved, p, indexes, funcInfo.Name, typeInfo)
 			c.compileBlock(astFunc.Body)
 			p.Functions[funcInfo.Index].Body = c.finish()
 		}
@@ -81,7 +85,7 @@ func Compile(prog *ast.Program, resolved *semantic.ResolveResult) (compiledProg 
 
 	// Phase 3: Compile BEGIN blocks.
 	for _, block := range prog.Begin {
-		c := newCompiler(resolved, p, indexes, "")
+		c := newCompiler(resolved, p, indexes, "", typeInfo)
 		c.compileBlock(block)
 		p.Begin = append(p.Begin, c.finish()...)
 	}
@@ -93,16 +97,16 @@ func Compile(prog *ast.Program, resolved *semantic.ResolveResult) (compiledProg 
 			// Check for range pattern (CommaExpr)
 			if comma, ok := rule.Pattern.(*ast.CommaExpr); ok {
 				// Range pattern: /start/, /end/
-				c := newCompiler(resolved, p, indexes, "")
+				c := newCompiler(resolved, p, indexes, "", typeInfo)
 				c.compileExpr(comma.Left)
 				pattern = append(pattern, c.finish())
 
-				c = newCompiler(resolved, p, indexes, "")
+				c = newCompiler(resolved, p, indexes, "", typeInfo)
 				c.compileExpr(comma.Right)
 				pattern = append(pattern, c.finish())
 			} else {
 				// Single pattern
-				c := newCompiler(resolved, p, indexes, "")
+				c := newCompiler(resolved, p, indexes, "", typeInfo)
 				c.compileExpr(rule.Pattern)
 				pattern = [][]Opcode{c.finish()}
 			}
@@ -114,11 +118,11 @@ func Compile(prog *ast.Program, resolved *semantic.ResolveResult) (compiledProg 
 			body = nil
 		} else if len(rule.Action.Stmts) == 0 {
 			// Empty action {} - add Nop so VM knows it's not nil
-			c := newCompiler(resolved, p, indexes, "")
+			c := newCompiler(resolved, p, indexes, "", typeInfo)
 			c.add(Nop)
 			body = c.finish()
 		} else {
-			c := newCompiler(resolved, p, indexes, "")
+			c := newCompiler(resolved, p, indexes, "", typeInfo)
 			c.compileBlock(rule.Action)
 			body = c.finish()
 		}
@@ -131,7 +135,7 @@ func Compile(prog *ast.Program, resolved *semantic.ResolveResult) (compiledProg 
 
 	// Phase 5: Compile END blocks.
 	for _, block := range prog.EndBlocks {
-		c := newCompiler(resolved, p, indexes, "")
+		c := newCompiler(resolved, p, indexes, "", typeInfo)
 		if len(block.Stmts) > 0 {
 			c.compileBlock(block)
 		} else {
@@ -176,18 +180,22 @@ type compiler struct {
 	indexes  *constantIndexes
 	funcName string // Current function name ("" for global scope)
 
+	// Type information for specialization (may be nil)
+	typeInfo *TypeInfo
+
 	code      []Opcode
 	breaks    [][]int // Stack of break target lists
 	continues [][]int // Stack of continue target lists
 }
 
 // newCompiler creates a new compiler for a code block.
-func newCompiler(resolved *semantic.ResolveResult, program *Program, indexes *constantIndexes, funcName string) *compiler {
+func newCompiler(resolved *semantic.ResolveResult, program *Program, indexes *constantIndexes, funcName string, typeInfo *TypeInfo) *compiler {
 	return &compiler{
 		resolved: resolved,
 		program:  program,
 		indexes:  indexes,
 		funcName: funcName,
+		typeInfo: typeInfo,
 	}
 }
 
@@ -649,30 +657,51 @@ func (c *compiler) compileCondition(expr ast.Expr, invert bool) Opcode {
 
 	// Optimize comparison expressions into conditional jumps
 	if binary, ok := expr.(*ast.BinaryExpr); ok {
+		// Check if we can use typed jump opcodes (P1-003 optimization)
+		useTyped := c.typeInfo != nil && c.typeInfo.BothNumeric(binary.Left, binary.Right)
+
 		switch binary.Op {
 		case token.EQUALS:
 			c.compileExpr(binary.Left)
 			c.compileExpr(binary.Right)
+			if useTyped {
+				return jumpOp(JumpEqualNum, JumpNotEqualNum)
+			}
 			return jumpOp(JumpEqual, JumpNotEq)
 		case token.NOT_EQUALS:
 			c.compileExpr(binary.Left)
 			c.compileExpr(binary.Right)
+			if useTyped {
+				return jumpOp(JumpNotEqualNum, JumpEqualNum)
+			}
 			return jumpOp(JumpNotEq, JumpEqual)
 		case token.LESS:
 			c.compileExpr(binary.Left)
 			c.compileExpr(binary.Right)
+			if useTyped {
+				return jumpOp(JumpLessNum, JumpGreaterEqNum)
+			}
 			return jumpOp(JumpLess, JumpGrEq)
 		case token.LTE:
 			c.compileExpr(binary.Left)
 			c.compileExpr(binary.Right)
+			if useTyped {
+				return jumpOp(JumpLessEqNum, JumpGreaterNum)
+			}
 			return jumpOp(JumpLessEq, JumpGreater)
 		case token.GREATER:
 			c.compileExpr(binary.Left)
 			c.compileExpr(binary.Right)
+			if useTyped {
+				return jumpOp(JumpGreaterNum, JumpLessEqNum)
+			}
 			return jumpOp(JumpGreater, JumpLessEq)
 		case token.GTE:
 			c.compileExpr(binary.Left)
 			c.compileExpr(binary.Right)
+			if useTyped {
+				return jumpOp(JumpGreaterEqNum, JumpLessNum)
+			}
 			return jumpOp(JumpGrEq, JumpLess)
 		}
 	}
@@ -840,32 +869,84 @@ func (c *compiler) compileBinaryExpr(e *ast.BinaryExpr) {
 	c.compileExpr(e.Left)
 	c.compileExpr(e.Right)
 
-	// Emit operator
+	// Check if we can use specialized numeric opcodes (P1-003 optimization).
+	// This is only safe when BOTH operands are provably numeric.
+	useTyped := c.typeInfo != nil && c.typeInfo.BothNumeric(e.Left, e.Right)
+
+	// Emit operator (with typed variants for numeric operations)
 	switch e.Op {
 	case token.ADD:
-		c.add(Add)
+		if useTyped {
+			c.add(AddNum)
+		} else {
+			c.add(Add)
+		}
 	case token.SUB:
-		c.add(Subtract)
+		if useTyped {
+			c.add(SubNum)
+		} else {
+			c.add(Subtract)
+		}
 	case token.MUL:
-		c.add(Multiply)
+		if useTyped {
+			c.add(MulNum)
+		} else {
+			c.add(Multiply)
+		}
 	case token.DIV:
-		c.add(Divide)
+		if useTyped {
+			c.add(DivNum)
+		} else {
+			c.add(Divide)
+		}
 	case token.MOD:
-		c.add(Modulo)
+		if useTyped {
+			c.add(ModNum)
+		} else {
+			c.add(Modulo)
+		}
 	case token.POW:
-		c.add(Power)
+		if useTyped {
+			c.add(PowNum)
+		} else {
+			c.add(Power)
+		}
 	case token.EQUALS:
-		c.add(Equal)
+		if useTyped {
+			c.add(EqualNum)
+		} else {
+			c.add(Equal)
+		}
 	case token.NOT_EQUALS:
-		c.add(NotEqual)
+		if useTyped {
+			c.add(NotEqualNum)
+		} else {
+			c.add(NotEqual)
+		}
 	case token.LESS:
-		c.add(Less)
+		if useTyped {
+			c.add(LessNum)
+		} else {
+			c.add(Less)
+		}
 	case token.LTE:
-		c.add(LessEqual)
+		if useTyped {
+			c.add(LessEqNum)
+		} else {
+			c.add(LessEqual)
+		}
 	case token.GREATER:
-		c.add(Greater)
+		if useTyped {
+			c.add(GreaterNum)
+		} else {
+			c.add(Greater)
+		}
 	case token.GTE:
-		c.add(GreaterEqual)
+		if useTyped {
+			c.add(GreaterEqNum)
+		} else {
+			c.add(GreaterEqual)
+		}
 	case token.MATCH:
 		c.add(Match)
 	case token.NOT_MATCH:
@@ -905,9 +986,17 @@ func (c *compiler) compileUnaryExpr(e *ast.UnaryExpr) {
 	}
 
 	c.compileExpr(e.Expr)
+
+	// Check if we can use typed opcode for unary minus
+	useTyped := c.typeInfo != nil && c.typeInfo.IsNumericExpr(e.Expr)
+
 	switch e.Op {
 	case token.SUB:
-		c.add(UnaryMinus)
+		if useTyped {
+			c.add(NegNum)
+		} else {
+			c.add(UnaryMinus)
+		}
 	case token.ADD:
 		c.add(UnaryPlus)
 	case token.NOT:

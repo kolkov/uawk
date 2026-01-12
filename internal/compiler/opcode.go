@@ -327,6 +327,45 @@ func (op Opcode) String() string {
 		return "FieldIntEqualStr"
 	case AddFields:
 		return "AddFields"
+	// Typed opcodes (static type specialization)
+	case AddNum:
+		return "AddNum"
+	case SubNum:
+		return "SubNum"
+	case MulNum:
+		return "MulNum"
+	case DivNum:
+		return "DivNum"
+	case ModNum:
+		return "ModNum"
+	case PowNum:
+		return "PowNum"
+	case NegNum:
+		return "NegNum"
+	case LessNum:
+		return "LessNum"
+	case LessEqNum:
+		return "LessEqNum"
+	case GreaterNum:
+		return "GreaterNum"
+	case GreaterEqNum:
+		return "GreaterEqNum"
+	case EqualNum:
+		return "EqualNum"
+	case NotEqualNum:
+		return "NotEqualNum"
+	case JumpLessNum:
+		return "JumpLessNum"
+	case JumpLessEqNum:
+		return "JumpLessEqNum"
+	case JumpGreaterNum:
+		return "JumpGreaterNum"
+	case JumpGreaterEqNum:
+		return "JumpGreaterEqNum"
+	case JumpEqualNum:
+		return "JumpEqualNum"
+	case JumpNotEqualNum:
+		return "JumpNotEqualNum"
 	default:
 		return fmt.Sprintf("Opcode(%d)", op)
 	}

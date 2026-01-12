@@ -45,6 +45,72 @@ const (
 	// JumpGlobalGrEqNum globalIdx numIdx offset
 	// Jumps if global[globalIdx] >= nums[numIdx]
 	JumpGlobalGrEqNum
+
+	// =============================================================================
+	// Typed opcodes for static type specialization (P1-003)
+	// These opcodes are emitted when the compiler can prove both operands are numeric.
+	// They skip type checking and work directly with float64 values.
+	// =============================================================================
+
+	// AddNum: typed addition (both operands known numeric)
+	// Pops two values, pushes float64 sum
+	AddNum Opcode = iota + 300
+
+	// SubNum: typed subtraction (both operands known numeric)
+	SubNum
+
+	// MulNum: typed multiplication (both operands known numeric)
+	MulNum
+
+	// DivNum: typed division (both operands known numeric)
+	DivNum
+
+	// ModNum: typed modulo (both operands known numeric)
+	ModNum
+
+	// PowNum: typed power (both operands known numeric)
+	PowNum
+
+	// NegNum: typed unary minus (operand known numeric)
+	NegNum
+
+	// LessNum: typed less-than comparison
+	// Pops two values, pushes 1 if a < b, else 0
+	LessNum
+
+	// LessEqNum: typed less-or-equal comparison
+	LessEqNum
+
+	// GreaterNum: typed greater-than comparison
+	GreaterNum
+
+	// GreaterEqNum: typed greater-or-equal comparison
+	GreaterEqNum
+
+	// EqualNum: typed equality comparison
+	EqualNum
+
+	// NotEqualNum: typed inequality comparison
+	NotEqualNum
+
+	// JumpLessNum: typed conditional jump
+	// Pops two values, jumps if a < b (numeric comparison)
+	JumpLessNum
+
+	// JumpLessEqNum: typed conditional jump
+	JumpLessEqNum
+
+	// JumpGreaterNum: typed conditional jump
+	JumpGreaterNum
+
+	// JumpGreaterEqNum: typed conditional jump
+	JumpGreaterEqNum
+
+	// JumpEqualNum: typed conditional jump
+	JumpEqualNum
+
+	// JumpNotEqualNum: typed conditional jump
+	JumpNotEqualNum
 )
 
 // fusedJump represents a fused jump that needs offset adjustment
@@ -302,7 +368,10 @@ func tryFuse(code []Opcode, i int) (int, []Opcode) {
 func isJumpOpcode(op Opcode) bool {
 	switch op {
 	case Jump, JumpTrue, JumpFalse, JumpEqual, JumpNotEq,
-		JumpLess, JumpLessEq, JumpGreater, JumpGrEq:
+		JumpLess, JumpLessEq, JumpGreater, JumpGrEq,
+		// Typed jump opcodes (P1-003)
+		JumpLessNum, JumpLessEqNum, JumpGreaterNum, JumpGreaterEqNum,
+		JumpEqualNum, JumpNotEqualNum:
 		return true
 	default:
 		return false
@@ -375,6 +444,16 @@ func instructionLength(code []Opcode, i int) int {
 	// Jump fused opcodes
 	case JumpGlobalLessNum, JumpGlobalGrEqNum:
 		return 4
+
+	// Typed numeric opcodes (no operands)
+	case AddNum, SubNum, MulNum, DivNum, ModNum, PowNum, NegNum,
+		LessNum, LessEqNum, GreaterNum, GreaterEqNum, EqualNum, NotEqualNum:
+		return 1
+
+	// Typed jump opcodes (1 operand: offset)
+	case JumpLessNum, JumpLessEqNum, JumpGreaterNum, JumpGreaterEqNum,
+		JumpEqualNum, JumpNotEqualNum:
+		return 2
 
 	default:
 		return 1

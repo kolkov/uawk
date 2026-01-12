@@ -1706,6 +1706,143 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			val2 := vm.getFieldNum(field2)
 			vm.push(types.Num(val1 + val2))
 
+		// =============================================================================
+		// Typed numeric opcodes (P1-003 static type specialization)
+		// These opcodes are emitted when the compiler proves both operands are numeric.
+		// They skip type checking and work directly with float64 values.
+		// Significant performance improvement for numeric-heavy workloads.
+		// =============================================================================
+
+		case compiler.AddNum:
+			// Typed addition: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a + b)
+
+		case compiler.SubNum:
+			// Typed subtraction: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a - b)
+
+		case compiler.MulNum:
+			// Typed multiplication: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a * b)
+
+		case compiler.DivNum:
+			// Typed division: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			if b == 0 {
+				return fmt.Errorf("division by zero")
+			}
+			vm.replaceTopFloat(a / b)
+
+		case compiler.ModNum:
+			// Typed modulo: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			if b == 0 {
+				return fmt.Errorf("division by zero")
+			}
+			vm.replaceTopFloat(math.Mod(a, b))
+
+		case compiler.PowNum:
+			// Typed power: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(math.Pow(a, b))
+
+		case compiler.NegNum:
+			// Typed unary minus: operand known to be numeric
+			vm.replaceTopFloat(-vm.peekFloat())
+
+		case compiler.LessNum:
+			// Typed less-than: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a < b)
+
+		case compiler.LessEqNum:
+			// Typed less-or-equal: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a <= b)
+
+		case compiler.GreaterNum:
+			// Typed greater-than: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a > b)
+
+		case compiler.GreaterEqNum:
+			// Typed greater-or-equal: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a >= b)
+
+		case compiler.EqualNum:
+			// Typed equality: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a == b)
+
+		case compiler.NotEqualNum:
+			// Typed inequality: both operands known to be numeric
+			a, b := vm.peekPopFloat()
+			vm.replaceTopBool(a != b)
+
+		case compiler.JumpLessNum:
+			// Typed conditional jump: jump if a < b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a < b {
+				ip += offset
+			}
+
+		case compiler.JumpLessEqNum:
+			// Typed conditional jump: jump if a <= b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a <= b {
+				ip += offset
+			}
+
+		case compiler.JumpGreaterNum:
+			// Typed conditional jump: jump if a > b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a > b {
+				ip += offset
+			}
+
+		case compiler.JumpGreaterEqNum:
+			// Typed conditional jump: jump if a >= b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a >= b {
+				ip += offset
+			}
+
+		case compiler.JumpEqualNum:
+			// Typed conditional jump: jump if a == b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a == b {
+				ip += offset
+			}
+
+		case compiler.JumpNotEqualNum:
+			// Typed conditional jump: jump if a != b (numeric)
+			offset := int(code[ip])
+			ip++
+			b := vm.popFloat()
+			a := vm.popFloat()
+			if a != b {
+				ip += offset
+			}
+
 		default:
 			return fmt.Errorf("unknown opcode: %d", op)
 		}

@@ -723,3 +723,130 @@ func dumpAST(prog *ast.Program) string {
 	sb.WriteString("\n")
 	return sb.String()
 }
+
+// TestTypedOpcodes verifies that typed opcodes are generated for provably-numeric expressions.
+func TestTypedOpcodes(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     string
+		wantOpcode Opcode
+	}{
+		{
+			name:       "AddNum for numeric literals",
+			source:     "BEGIN { x = 1 + 2 }",
+			wantOpcode: AddNum,
+		},
+		{
+			name:       "SubNum for numeric literals",
+			source:     "BEGIN { x = 5 - 3 }",
+			wantOpcode: SubNum,
+		},
+		{
+			name:       "MulNum for numeric literals",
+			source:     "BEGIN { x = 2 * 3 }",
+			wantOpcode: MulNum,
+		},
+		{
+			name:       "DivNum for numeric literals",
+			source:     "BEGIN { x = 10 / 2 }",
+			wantOpcode: DivNum,
+		},
+		{
+			name:       "LessNum for numeric comparison",
+			source:     "BEGIN { x = 1 < 2 }",
+			wantOpcode: LessNum,
+		},
+		{
+			name:       "EqualNum for numeric equality",
+			source:     "BEGIN { x = 1 == 1 }",
+			wantOpcode: EqualNum,
+		},
+		{
+			name:       "NegNum for unary minus on numeric",
+			source:     "BEGIN { x = -5 }",
+			wantOpcode: NegNum,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			compiled := compileSource(t, tt.source)
+			found := false
+			for _, op := range compiled.Begin {
+				if op == tt.wantOpcode {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected %s opcode in compiled code, got: %v", tt.wantOpcode, compiled.Begin)
+			}
+		})
+	}
+}
+
+// TestTypedOpcodesNotUsed verifies that typed opcodes are NOT used when types are unknown.
+func TestTypedOpcodesNotUsed(t *testing.T) {
+	tests := []struct {
+		name            string
+		source          string
+		unwantedOpcodes []Opcode
+	}{
+		{
+			name:   "field access uses generic opcodes",
+			source: "{ sum += $1 }",
+			// $1 has unknown type, so Add should be used, not AddNum
+			unwantedOpcodes: []Opcode{AddNum},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			compiled := compileSource(t, tt.source)
+			for _, action := range compiled.Actions {
+				for _, op := range action.Body {
+					for _, unwanted := range tt.unwantedOpcodes {
+						if op == unwanted {
+							t.Errorf("unexpected %s opcode in compiled code", unwanted)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestTypedOpcodeStrings verifies String() method for typed opcodes.
+func TestTypedOpcodeStrings(t *testing.T) {
+	opcodes := []struct {
+		op   Opcode
+		want string
+	}{
+		{AddNum, "AddNum"},
+		{SubNum, "SubNum"},
+		{MulNum, "MulNum"},
+		{DivNum, "DivNum"},
+		{ModNum, "ModNum"},
+		{PowNum, "PowNum"},
+		{NegNum, "NegNum"},
+		{LessNum, "LessNum"},
+		{LessEqNum, "LessEqNum"},
+		{GreaterNum, "GreaterNum"},
+		{GreaterEqNum, "GreaterEqNum"},
+		{EqualNum, "EqualNum"},
+		{NotEqualNum, "NotEqualNum"},
+		{JumpLessNum, "JumpLessNum"},
+		{JumpLessEqNum, "JumpLessEqNum"},
+		{JumpGreaterNum, "JumpGreaterNum"},
+		{JumpGreaterEqNum, "JumpGreaterEqNum"},
+		{JumpEqualNum, "JumpEqualNum"},
+		{JumpNotEqualNum, "JumpNotEqualNum"},
+	}
+
+	for _, tt := range opcodes {
+		got := tt.op.String()
+		if got != tt.want {
+			t.Errorf("%d.String() = %q, want %q", tt.op, got, tt.want)
+		}
+	}
+}
