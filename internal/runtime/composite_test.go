@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -441,6 +442,146 @@ func BenchmarkCoregexAlphaDigit(b *testing.B) {
 	// Use a pattern that won't be recognized as composite
 	re, _ := Compile(`[a-zA-Z]+[0-9]+[a-z]?`)
 	input := "The test123 contains abc456 and xyz789 patterns"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		re.MatchString(input)
+	}
+}
+
+// Tests for first-char skip optimization
+
+func TestCompositeFirstCharSkip(t *testing.T) {
+	// Pattern starts with char class - uses firstCharFilter
+	re1, err := Compile(`[a-zA-Z]+[0-9]+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify it has firstCharFilter set
+	if re1.composite != nil && re1.composite.firstCharFilter == nil {
+		t.Error("Expected firstCharFilter to be set for [a-zA-Z]+[0-9]+")
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"match early", "abc123", true},
+		{"match after non-matching", "123 abc456", true},
+		{"match after many non-matching", "1234567890 test123", true},
+		{"no match all digits", "1234567890", false},
+		{"no match all spaces", "          ", false},
+		{"match at very end", "!!!abc1", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := re1.MatchString(tt.input); got != tt.expected {
+				t.Errorf("MatchString(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCompositeLiteralPrefixSkip(t *testing.T) {
+	// Pattern starts with literal - uses literalPrefix with strings.Index
+	re, err := Compile(`user[0-9]+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify it has literalPrefix set
+	if re.composite != nil && re.composite.literalPrefix != "user" {
+		t.Errorf("Expected literalPrefix='user', got %q", re.composite.literalPrefix)
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"match at start", "user123", true},
+		{"match after other text", "create user456", true},
+		{"match after many chars", "abcdefghijklmnop user789", true},
+		{"no match wrong prefix", "admin123", false},
+		{"no match partial", "use123", false},
+		{"multiple users", "user1 user2 user3", true},
+		{"user without number", "user", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := re.MatchString(tt.input); got != tt.expected {
+				t.Errorf("MatchString(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCompositeLiteralPrefixFindIndex(t *testing.T) {
+	re, err := Compile(`user[0-9]+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected []int
+	}{
+		{"start", "user123", []int{0, 7}},
+		{"middle", "see user456 here", []int{4, 11}},
+		{"multiple finds first", "user1 user2", []int{0, 5}},
+		{"no match", "admin123", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := re.FindStringIndex(tt.input)
+			if tt.expected == nil {
+				if got != nil {
+					t.Errorf("FindStringIndex(%q) = %v, want nil", tt.input, got)
+				}
+			} else if got == nil {
+				t.Errorf("FindStringIndex(%q) = nil, want %v", tt.input, tt.expected)
+			} else if got[0] != tt.expected[0] || got[1] != tt.expected[1] {
+				t.Errorf("FindStringIndex(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// Benchmark literal prefix optimization
+func BenchmarkCompositeLiteralPrefix(b *testing.B) {
+	re, _ := Compile(`user[0-9]+`)
+	input := "There are many entries: admin1, guest2, user123, test456"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		re.MatchString(input)
+	}
+}
+
+func BenchmarkCompositeLiteralPrefixLong(b *testing.B) {
+	re, _ := Compile(`user[0-9]+`)
+	// Long string where match is near the end
+	input := strings.Repeat("admin123 guest456 ", 50) + "user789"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		re.MatchString(input)
+	}
+}
+
+func BenchmarkCompositeFirstCharSkipLong(b *testing.B) {
+	re, _ := Compile(`[a-zA-Z]+[0-9]+`)
+	// Long string with many digits before first match
+	input := strings.Repeat("123456 ", 50) + "abc789"
 
 	b.ResetTimer()
 	b.ReportAllocs()
