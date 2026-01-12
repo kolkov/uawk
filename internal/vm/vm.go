@@ -311,6 +311,65 @@ func (vm *VM) stackPosition() int {
 	return vm.sp
 }
 
+// =============================================================================
+// Typed Stack Operations (uawk-specific optimization)
+// These avoid boxing/unboxing overhead for numeric-heavy workloads.
+// Not present in GoAWK - unique to uawk for performance.
+// =============================================================================
+
+// popFloat pops the top value and returns it as float64.
+// Avoids creating intermediate Value for numeric operations.
+func (vm *VM) popFloat() float64 {
+	vm.sp--
+	return vm.stackData[vm.sp].AsNum()
+}
+
+// peekFloat returns the top value as float64 without removing it.
+func (vm *VM) peekFloat() float64 {
+	return vm.stackData[vm.sp-1].AsNum()
+}
+
+// pushFloat pushes a float64 directly as a Num Value.
+func (vm *VM) pushFloat(f float64) {
+	if vm.sp >= len(vm.stackData) {
+		vm.growStack()
+	}
+	vm.stackData[vm.sp] = types.Num(f)
+	vm.sp++
+}
+
+// replaceTopFloat replaces the top value with a float64.
+func (vm *VM) replaceTopFloat(f float64) {
+	vm.stackData[vm.sp-1] = types.Num(f)
+}
+
+// peekPopFloat returns (second-from-top as float, top as float) and pops top.
+// Optimized for binary numeric operations.
+func (vm *VM) peekPopFloat() (float64, float64) {
+	vm.sp--
+	return vm.stackData[vm.sp-1].AsNum(), vm.stackData[vm.sp].AsNum()
+}
+
+// popBool pops the top value and returns it as bool.
+func (vm *VM) popBool() bool {
+	vm.sp--
+	return vm.stackData[vm.sp].AsBool()
+}
+
+// replaceTopBool replaces the top value with a bool.
+func (vm *VM) replaceTopBool(b bool) {
+	vm.stackData[vm.sp-1] = types.Bool(b)
+}
+
+// popN returns a view of the top N values and decrements sp.
+// WARNING: The returned slice is a view into the stack data.
+// The caller must not hold the reference after pushing new values.
+// This is an optimization for variadic functions like printf.
+func (vm *VM) popN(n int) []types.Value {
+	vm.sp -= n
+	return vm.stackData[vm.sp : vm.sp+n]
+}
+
 // growStack doubles the stack capacity.
 func (vm *VM) growStack() {
 	newData := make([]types.Value, len(vm.stackData)*2)
@@ -1101,36 +1160,35 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			vm.push(types.Str(strings.Join(parts, "")))
 
 		case compiler.Add:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(a.AsNum() + b.AsNum()))
+			// Optimized: use typed stack ops to avoid boxing/unboxing overhead
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a + b)
 
 		case compiler.Subtract:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(a.AsNum() - b.AsNum()))
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a - b)
 
 		case compiler.Multiply:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(a.AsNum() * b.AsNum()))
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(a * b)
 
 		case compiler.Divide:
-			a, b := vm.peekPop()
-			bNum := b.AsNum()
-			if bNum == 0 {
+			a, b := vm.peekPopFloat()
+			if b == 0 {
 				return fmt.Errorf("division by zero")
 			}
-			vm.replaceTop(types.Num(a.AsNum() / bNum))
+			vm.replaceTopFloat(a / b)
 
 		case compiler.Power:
-			a, b := vm.peekPop()
-			vm.replaceTop(types.Num(math.Pow(a.AsNum(), b.AsNum())))
+			a, b := vm.peekPopFloat()
+			vm.replaceTopFloat(math.Pow(a, b))
 
 		case compiler.Modulo:
-			a, b := vm.peekPop()
-			bNum := b.AsNum()
-			if bNum == 0 {
+			a, b := vm.peekPopFloat()
+			if b == 0 {
 				return fmt.Errorf("division by zero")
 			}
-			vm.replaceTop(types.Num(math.Mod(a.AsNum(), bNum)))
+			vm.replaceTopFloat(math.Mod(a, b))
 
 		case compiler.Equal:
 			a, b := vm.peekPop()
@@ -1227,16 +1285,20 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			}
 
 		case compiler.UnaryMinus:
-			vm.replaceTop(types.Num(-vm.peek().AsNum()))
+			// Optimized: use typed stack ops to avoid boxing/unboxing
+			vm.replaceTopFloat(-vm.peekFloat())
 
 		case compiler.UnaryPlus:
-			vm.replaceTop(types.Num(vm.peek().AsNum()))
+			// Optimized: forces numeric conversion using typed ops
+			vm.replaceTopFloat(vm.peekFloat())
 
 		case compiler.Not:
-			vm.replaceTop(types.Bool(!vm.peek().AsBool()))
+			// Optimized: use typed stack ops
+			vm.replaceTopBool(!vm.stackData[vm.sp-1].AsBool())
 
 		case compiler.Boolean:
-			vm.replaceTop(types.Bool(vm.peek().AsBool()))
+			// Optimized: use typed stack ops
+			vm.replaceTopBool(vm.stackData[vm.sp-1].AsBool())
 
 		case compiler.Jump:
 			offset := int(code[ip])
