@@ -1018,6 +1018,42 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			_, ok := arr[key]
 			vm.push(types.Bool(ok))
 
+		// =============================================================================
+		// Specialized global array opcodes (no scope switch overhead)
+		// =============================================================================
+
+		case compiler.ArrayGetGlobal:
+			idx := int(code[ip])
+			ip++
+			key := vm.pop().AsStr(vm.convfmt)
+			arr := vm.arrays[idx] // Direct access, no getArray() call
+			if v, ok := arr[key]; ok {
+				vm.push(v)
+			} else {
+				arr[key] = types.Str("")
+				vm.push(types.Str(""))
+			}
+
+		case compiler.ArraySetGlobal:
+			idx := int(code[ip])
+			ip++
+			key := vm.pop().AsStr(vm.convfmt)
+			value := vm.pop()
+			vm.arrays[idx][key] = value // Direct access
+
+		case compiler.ArrayDeleteGlobal:
+			idx := int(code[ip])
+			ip++
+			key := vm.pop().AsStr(vm.convfmt)
+			delete(vm.arrays[idx], key) // Direct access
+
+		case compiler.ArrayInGlobal:
+			idx := int(code[ip])
+			ip++
+			key := vm.pop().AsStr(vm.convfmt)
+			_, ok := vm.arrays[idx][key] // Direct access
+			vm.push(types.Bool(ok))
+
 		case compiler.IncrGlobal:
 			amount := float64(code[ip])
 			ip++
@@ -1057,6 +1093,16 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			ip++
 			key := vm.pop().AsStr(vm.convfmt)
 			arr := vm.getArray(scope, idx)
+			v := arr[key]
+			arr[key] = types.Num(v.AsNum() + amount)
+
+		case compiler.IncrArrayGlobal:
+			amount := float64(code[ip])
+			ip++
+			idx := int(code[ip])
+			ip++
+			key := vm.pop().AsStr(vm.convfmt)
+			arr := vm.arrays[idx] // Direct access, no getArray() call
 			v := arr[key]
 			arr[key] = types.Num(v.AsNum() + amount)
 
@@ -1106,6 +1152,17 @@ func (vm *VM) execute(code []compiler.Opcode) error {
 			key := vm.pop().AsStr(vm.convfmt)
 			rhs := vm.pop().AsNum()
 			arr := vm.getArray(scope, idx)
+			lhs := arr[key].AsNum()
+			arr[key] = types.Num(vm.applyAugOp(augOp, lhs, rhs))
+
+		case compiler.AugArrayGlobal:
+			augOp := compiler.AugOp(code[ip])
+			ip++
+			idx := int(code[ip])
+			ip++
+			key := vm.pop().AsStr(vm.convfmt)
+			rhs := vm.pop().AsNum()
+			arr := vm.arrays[idx] // Direct access, no getArray() call
 			lhs := arr[key].AsNum()
 			arr[key] = types.Num(vm.applyAugOp(augOp, lhs, rhs))
 

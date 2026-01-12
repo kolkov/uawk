@@ -209,6 +209,16 @@ func (p *Program) disassembleCode(sb *strings.Builder, code []Opcode, indent str
 				idx := code[i]
 				fmt.Fprintf(sb, " %s [%d]", scope, idx)
 			}
+		case ArrayGetGlobal, ArraySetGlobal, ArrayDeleteGlobal, ArrayInGlobal:
+			if i+1 < len(code) {
+				i++
+				idx := code[i]
+				if int(idx) < len(p.ArrayNames) && p.ArrayNames[idx] != "" {
+					fmt.Fprintf(sb, " %s [%d]", p.ArrayNames[idx], idx)
+				} else {
+					fmt.Fprintf(sb, " Global[%d]", idx)
+				}
+			}
 		case IncrGlobal, IncrLocal, IncrSpecial:
 			if i+2 < len(code) {
 				i++
@@ -231,6 +241,38 @@ func (p *Program) disassembleCode(sb *strings.Builder, code []Opcode, indent str
 					fmt.Fprintf(sb, " --")
 				}
 			}
+		case IncrArray:
+			if i+3 < len(code) {
+				i++
+				amount := code[i]
+				i++
+				scope := Scope(code[i])
+				i++
+				idx := code[i]
+				if amount > 0 {
+					fmt.Fprintf(sb, " ++ %s[%d]", scope, idx)
+				} else {
+					fmt.Fprintf(sb, " -- %s[%d]", scope, idx)
+				}
+			}
+		case IncrArrayGlobal:
+			if i+2 < len(code) {
+				i++
+				amount := code[i]
+				i++
+				idx := code[i]
+				var name string
+				if int(idx) < len(p.ArrayNames) && p.ArrayNames[idx] != "" {
+					name = p.ArrayNames[idx]
+				} else {
+					name = fmt.Sprintf("Global[%d]", idx)
+				}
+				if amount > 0 {
+					fmt.Fprintf(sb, " ++ %s", name)
+				} else {
+					fmt.Fprintf(sb, " -- %s", name)
+				}
+			}
 		case AugGlobal, AugLocal, AugSpecial:
 			if i+2 < len(code) {
 				i++
@@ -238,6 +280,36 @@ func (p *Program) disassembleCode(sb *strings.Builder, code []Opcode, indent str
 				i++
 				idx := code[i]
 				fmt.Fprintf(sb, " %s [%d]", augOp, idx)
+			}
+		case AugField:
+			if i+1 < len(code) {
+				i++
+				augOp := AugOp(code[i])
+				fmt.Fprintf(sb, " %s", augOp)
+			}
+		case AugArray:
+			if i+3 < len(code) {
+				i++
+				augOp := AugOp(code[i])
+				i++
+				scope := Scope(code[i])
+				i++
+				idx := code[i]
+				fmt.Fprintf(sb, " %s %s[%d]", augOp, scope, idx)
+			}
+		case AugArrayGlobal:
+			if i+2 < len(code) {
+				i++
+				augOp := AugOp(code[i])
+				i++
+				idx := code[i]
+				var name string
+				if int(idx) < len(p.ArrayNames) && p.ArrayNames[idx] != "" {
+					name = p.ArrayNames[idx]
+				} else {
+					name = fmt.Sprintf("Global[%d]", idx)
+				}
+				fmt.Fprintf(sb, " %s %s", augOp, name)
 			}
 		case Jump, JumpTrue, JumpFalse, JumpEqual, JumpNotEq,
 			JumpLess, JumpLessEq, JumpGreater, JumpGrEq:

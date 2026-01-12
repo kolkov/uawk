@@ -42,6 +42,12 @@ const (
 	ArrayClear  // Delete entire array: ArrayClear scope index
 	ArrayIn     // Test membership: ArrayIn scope index (key on stack)
 
+	// Specialized global array access (no scope switch overhead)
+	ArrayGetGlobal    // Get global array element: ArrayGetGlobal index (key on stack)
+	ArraySetGlobal    // Set global array element: ArraySetGlobal index (value and key on stack)
+	ArrayDeleteGlobal // Delete from global array: ArrayDeleteGlobal index (key on stack)
+	ArrayInGlobal     // Test membership in global array: ArrayInGlobal index (key on stack)
+
 	// Increment/Decrement (optimized for standalone statements)
 	IncrGlobal  // Increment global: IncrGlobal amount index
 	IncrLocal   // Increment local: IncrLocal amount index
@@ -49,12 +55,18 @@ const (
 	IncrField   // Increment field: IncrField amount (field index on stack)
 	IncrArray   // Increment array element: IncrArray amount scope index (key on stack)
 
+	// Specialized global array increment (no scope switch overhead)
+	IncrArrayGlobal // Increment global array element: IncrArrayGlobal amount index (key on stack)
+
 	// Augmented assignment
 	AugGlobal  // op= global: AugGlobal augOp index (value on stack)
 	AugLocal   // op= local: AugLocal augOp index (value on stack)
 	AugSpecial // op= special: AugSpecial augOp index (value on stack)
 	AugField   // op= field: AugField augOp (field index and value on stack)
 	AugArray   // op= array: AugArray augOp scope index (key and value on stack)
+
+	// Specialized global array augmented assignment (no scope switch overhead)
+	AugArrayGlobal // op= global array: AugArrayGlobal augOp index (key and value on stack)
 
 	// Regex
 	Regex // Push regex match against $0: Regex regexIndex
@@ -184,6 +196,14 @@ func (op Opcode) String() string {
 		return "ArrayClear"
 	case ArrayIn:
 		return "ArrayIn"
+	case ArrayGetGlobal:
+		return "ArrayGetGlobal"
+	case ArraySetGlobal:
+		return "ArraySetGlobal"
+	case ArrayDeleteGlobal:
+		return "ArrayDeleteGlobal"
+	case ArrayInGlobal:
+		return "ArrayInGlobal"
 	case IncrGlobal:
 		return "IncrGlobal"
 	case IncrLocal:
@@ -194,6 +214,8 @@ func (op Opcode) String() string {
 		return "IncrField"
 	case IncrArray:
 		return "IncrArray"
+	case IncrArrayGlobal:
+		return "IncrArrayGlobal"
 	case AugGlobal:
 		return "AugGlobal"
 	case AugLocal:
@@ -204,6 +226,8 @@ func (op Opcode) String() string {
 		return "AugField"
 	case AugArray:
 		return "AugArray"
+	case AugArrayGlobal:
+		return "AugArrayGlobal"
 	case Regex:
 		return "Regex"
 	case IndexMulti:

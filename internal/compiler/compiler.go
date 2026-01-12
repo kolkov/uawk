@@ -422,7 +422,11 @@ func (c *compiler) compileStmt(stmt ast.Stmt) {
 			scope, idx := c.lookupArray(ident.Name)
 			if len(s.Index) > 0 {
 				c.compileIndex(s.Index)
-				c.add(ArrayDelete, Opcode(scope), opcodeInt(idx))
+				if scope == ScopeGlobal {
+					c.add(ArrayDeleteGlobal, opcodeInt(idx))
+				} else {
+					c.add(ArrayDelete, Opcode(scope), opcodeInt(idx))
+				}
 			} else {
 				c.add(ArrayClear, Opcode(scope), opcodeInt(idx))
 			}
@@ -480,7 +484,11 @@ func (c *compiler) compileIncr(expr *ast.UnaryExpr) {
 		c.compileIndex(target.Index)
 		if ident, ok := target.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(IncrArray, amount, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(IncrArrayGlobal, amount, opcodeInt(idx))
+			} else {
+				c.add(IncrArray, amount, Opcode(scope), opcodeInt(idx))
+			}
 		}
 	}
 }
@@ -753,7 +761,11 @@ func (c *compiler) compileExpr(expr ast.Expr) {
 		c.compileIndex(e.Index)
 		if ident, ok := e.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(ArrayGet, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(ArrayGetGlobal, opcodeInt(idx))
+			} else {
+				c.add(ArrayGet, Opcode(scope), opcodeInt(idx))
+			}
 		}
 
 	case *ast.BinaryExpr:
@@ -812,7 +824,11 @@ func (c *compiler) compileExpr(expr ast.Expr) {
 		c.compileIndex(e.Index)
 		if ident, ok := e.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(ArrayIn, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(ArrayInGlobal, opcodeInt(idx))
+			} else {
+				c.add(ArrayIn, Opcode(scope), opcodeInt(idx))
+			}
 		}
 
 	case *ast.MatchExpr:
@@ -1282,7 +1298,11 @@ func (c *compiler) compileAssign(target ast.Expr, op token.Token) {
 		c.compileIndex(t.Index)
 		if ident, ok := t.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(ArraySet, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(ArraySetGlobal, opcodeInt(idx))
+			} else {
+				c.add(ArraySet, Opcode(scope), opcodeInt(idx))
+			}
 		}
 	}
 }
@@ -1325,7 +1345,11 @@ func (c *compiler) compileAugAssign(target ast.Expr, op token.Token) {
 		c.compileIndex(t.Index)
 		if ident, ok := t.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(AugArray, Opcode(augOp), Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(AugArrayGlobal, Opcode(augOp), opcodeInt(idx))
+			} else {
+				c.add(AugArray, Opcode(augOp), Opcode(scope), opcodeInt(idx))
+			}
 		}
 	}
 }
@@ -1344,7 +1368,11 @@ func (c *compiler) compileDupeIndexLValue(expr ast.Expr) {
 		c.add(Dupe)
 		if ident, ok := e.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(ArrayGet, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(ArrayGetGlobal, opcodeInt(idx))
+			} else {
+				c.add(ArrayGet, Opcode(scope), opcodeInt(idx))
+			}
 		}
 	}
 }
@@ -1394,12 +1422,21 @@ func (c *compiler) compileAugAssignExpr(target ast.Expr, op token.Token, rhs ast
 		c.add(Dupe)
 		if ident, ok := t.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(ArrayGet, Opcode(scope), opcodeInt(idx))
-			c.compileExpr(rhs)
-			c.compileAugOp(op)
-			c.add(Dupe)
-			c.add(Rote)
-			c.add(ArraySet, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(ArrayGetGlobal, opcodeInt(idx))
+				c.compileExpr(rhs)
+				c.compileAugOp(op)
+				c.add(Dupe)
+				c.add(Rote)
+				c.add(ArraySetGlobal, opcodeInt(idx))
+			} else {
+				c.add(ArrayGet, Opcode(scope), opcodeInt(idx))
+				c.compileExpr(rhs)
+				c.compileAugOp(op)
+				c.add(Dupe)
+				c.add(Rote)
+				c.add(ArraySet, Opcode(scope), opcodeInt(idx))
+			}
 		}
 	}
 }
@@ -1434,7 +1471,11 @@ func (c *compiler) compileAssignRoteIndex(expr ast.Expr) {
 		c.add(Rote)
 		if ident, ok := e.Array.(*ast.Ident); ok {
 			scope, idx := c.lookupArray(ident.Name)
-			c.add(ArraySet, Opcode(scope), opcodeInt(idx))
+			if scope == ScopeGlobal {
+				c.add(ArraySetGlobal, opcodeInt(idx))
+			} else {
+				c.add(ArraySet, Opcode(scope), opcodeInt(idx))
+			}
 		}
 	}
 }

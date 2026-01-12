@@ -225,6 +225,8 @@ func (v *varSet) merge(other *varSet) {
 }
 
 // analyzeCodeVars analyzes variable usage in bytecode.
+//
+//nolint:gocognit // switch-case bytecode analysis cannot be split without losing readability
 func analyzeCodeVars(code []compiler.Opcode) *varSet {
 	vs := newVarSet()
 	if len(code) == 0 {
@@ -266,6 +268,11 @@ func analyzeCodeVars(code []compiler.Opcode) *varSet {
 				}
 				i += 2
 			}
+		case compiler.ArrayGetGlobal:
+			if i+1 < len(code) {
+				vs.readArrays[int(code[i+1])] = true
+				i++
+			}
 		case compiler.ArraySet:
 			if i+2 < len(code) {
 				scope := compiler.Scope(code[i+1])
@@ -273,6 +280,11 @@ func analyzeCodeVars(code []compiler.Opcode) *varSet {
 					vs.writtenArrays[int(code[i+2])] = true
 				}
 				i += 2
+			}
+		case compiler.ArraySetGlobal:
+			if i+1 < len(code) {
+				vs.writtenArrays[int(code[i+1])] = true
+				i++
 			}
 		case compiler.IncrArray:
 			if i+3 < len(code) {
@@ -284,6 +296,13 @@ func analyzeCodeVars(code []compiler.Opcode) *varSet {
 				}
 				i += 3
 			}
+		case compiler.IncrArrayGlobal:
+			if i+2 < len(code) {
+				idx := int(code[i+2])
+				vs.readArrays[idx] = true
+				vs.writtenArrays[idx] = true
+				i += 2
+			}
 		case compiler.AugArray:
 			if i+3 < len(code) {
 				scope := compiler.Scope(code[i+2])
@@ -293,6 +312,13 @@ func analyzeCodeVars(code []compiler.Opcode) *varSet {
 					vs.writtenArrays[idx] = true
 				}
 				i += 3
+			}
+		case compiler.AugArrayGlobal:
+			if i+2 < len(code) {
+				idx := int(code[i+2])
+				vs.readArrays[idx] = true
+				vs.writtenArrays[idx] = true
+				i += 2
 			}
 		// Skip operands for other opcodes
 		case compiler.Num, compiler.Str, compiler.Regex,
@@ -311,6 +337,8 @@ func analyzeCodeVars(code []compiler.Opcode) *varSet {
 			i += 2
 		case compiler.ArrayIn, compiler.ArrayDelete, compiler.ArrayClear:
 			i += 2
+		case compiler.ArrayInGlobal, compiler.ArrayDeleteGlobal:
+			i++
 		case compiler.ForIn:
 			i += 5
 		case compiler.CallBuiltin:
@@ -407,8 +435,12 @@ func checkUnsafeOps(code []compiler.Opcode) []UnsafeReason {
 			i += 2
 		case compiler.ArrayGet, compiler.ArraySet, compiler.ArrayIn, compiler.ArrayDelete, compiler.ArrayClear:
 			i += 2
+		case compiler.ArrayGetGlobal, compiler.ArraySetGlobal, compiler.ArrayDeleteGlobal, compiler.ArrayInGlobal:
+			i++
 		case compiler.IncrArray, compiler.AugArray:
 			i += 3
+		case compiler.IncrArrayGlobal, compiler.AugArrayGlobal:
+			i += 2
 		case compiler.ForIn:
 			i += 5
 		case compiler.CallUser:
@@ -470,8 +502,12 @@ func hasUserFunctionCall(code []compiler.Opcode) bool {
 			i += 2
 		case compiler.ArrayGet, compiler.ArraySet, compiler.ArrayIn, compiler.ArrayDelete, compiler.ArrayClear:
 			i += 2
+		case compiler.ArrayGetGlobal, compiler.ArraySetGlobal, compiler.ArrayDeleteGlobal, compiler.ArrayInGlobal:
+			i++
 		case compiler.IncrArray, compiler.AugArray:
 			i += 3
+		case compiler.IncrArrayGlobal, compiler.AugArrayGlobal:
+			i += 2
 		case compiler.ForIn:
 			i += 5
 		case compiler.CallBuiltin:
