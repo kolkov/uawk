@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-12
+
 ### Added
 - **Parallel execution** with `-j N` flag for concurrent multi-file processing
   - Automatic detection of parallel-safe programs (no BEGIN/END, no shared state)
@@ -29,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **email benchmark**: 181ms → 32ms (5.7x faster, was broken before fix)
 - **All 16/16 benchmarks now faster than GoAWK**
 
-## [0.1.6] - 2026-01-11
+## [0.1.6] - 2026-01-12
 
 ### Added
 - `--posix` / `--no-posix` CLI flags for regex mode selection
@@ -37,8 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RegexConfig` and `VMConfig` for fine-grained control
 
 ### Performance
+- **VM Performance V2**: Type specialization, opcode fusion, stack optimization
+  - Static type inference for numeric operations
+  - Peephole optimizer for instruction fusion
+  - Optimized stack operations (PeekPop, ReplaceTop)
 - `--no-posix` mode disables leftmost-longest matching for faster regex
 - Up to 12% improvement on some patterns in fast mode
+- **15/16 benchmarks** faster than GoAWK
 
 ## [0.1.5] - 2026-01-07
 
@@ -132,7 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kolkov/uawk/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/kolkov/uawk/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/kolkov/uawk/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/kolkov/uawk/compare/v0.1.3...v0.1.4
