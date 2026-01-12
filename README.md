@@ -122,6 +122,7 @@ uawk vs GoAWK on 16 benchmarks (10MB dataset, lower is better):
 ### Performance Features
 
 - **Parallel Execution**: Multi-file processing with automatic result merging (`-j N`)
+- **Lazy ENVIRON**: Environment variables loaded on-demand, not at VM creation (-56% startup overhead)
 - **Specialized Global Opcodes**: Direct array access without scope dispatch overhead
 - **Static Type Specialization**: Compile-time type inference for numeric operations
 - **Opcode Fusion**: Peephole optimizer combines common instruction sequences

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+- **Lazy ENVIRON loading** for 40-60% faster VM creation
+  - `os.Environ()` syscall deferred until first ENVIRON access
+  - Most AWK programs don't use ENVIRON, now they pay zero overhead
+  - VM creation: 87μs → 38μs (-56%), memory: 63KB → 36KB (-43%)
+  - Real-world benchmarks: -17% to -25% improvement (wordcount, groupby, filter)
+
 ## [0.2.0] - 2026-01-12
 
 ### Added
