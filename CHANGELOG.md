@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-01-14
+
+### Changed
+- Updated coregex to v0.10.6
+  - **v0.10.4**: Thread-safety fix with `sync.Pool` for concurrent Regexp usage
+  - **v0.10.5**: CompositeSearcher backtracking fix for overlapping patterns (`\w+[0-9]+`)
+  - **v0.10.6**: CompositeSequenceDFA (25x faster overlapping char classes, 300 MB/s)
+  - **v0.10.6**: `FindAllIndexCompact` API for near-zero allocations
+
 ## [0.2.1] - 2026-01-12
 
 ### Performance
@@ -148,7 +157,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/kolkov/uawk/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kolkov/uawk/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kolkov/uawk/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/kolkov/uawk/compare/v0.1.5...v0.1.6
