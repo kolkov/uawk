@@ -306,20 +306,20 @@ func (vm *VM) builtinSprintf(args []types.Value) string {
 		case 'd', 'i':
 			// %i is same as %d in AWK
 			goFmt := "%" + flags.String() + width + precision + "d"
-			result.WriteString(fmt.Sprintf(goFmt, int64(value.AsNum())))
+			fmt.Fprintf(&result, goFmt, int64(value.AsNum()))
 		case 'o':
 			goFmt := "%" + flags.String() + width + precision + "o"
-			result.WriteString(fmt.Sprintf(goFmt, uint64(value.AsNum())))
+			fmt.Fprintf(&result, goFmt, uint64(value.AsNum()))
 		case 'x':
 			goFmt := "%" + flags.String() + width + precision + "x"
-			result.WriteString(fmt.Sprintf(goFmt, uint64(value.AsNum())))
+			fmt.Fprintf(&result, goFmt, uint64(value.AsNum()))
 		case 'X':
 			goFmt := "%" + flags.String() + width + precision + "X"
-			result.WriteString(fmt.Sprintf(goFmt, uint64(value.AsNum())))
+			fmt.Fprintf(&result, goFmt, uint64(value.AsNum()))
 		case 'u':
 			// %u is unsigned decimal - use %d with uint64
 			goFmt := "%" + flags.String() + width + precision + "d"
-			result.WriteString(fmt.Sprintf(goFmt, uint64(value.AsNum())))
+			fmt.Fprintf(&result, goFmt, uint64(value.AsNum()))
 		case 'c':
 			// %c: if number, use as ASCII code; if string, use first char
 			// AWK convention: number takes precedence for %c
@@ -339,22 +339,22 @@ func (vm *VM) builtinSprintf(args []types.Value) string {
 		case 's':
 			s := value.AsStr(vm.convfmt)
 			goFmt := "%" + flags.String() + width + precision + "s"
-			result.WriteString(fmt.Sprintf(goFmt, s))
+			fmt.Fprintf(&result, goFmt, s)
 		case 'e':
 			goFmt := "%" + flags.String() + width + precision + "e"
-			result.WriteString(fmt.Sprintf(goFmt, value.AsNum()))
+			fmt.Fprintf(&result, goFmt, value.AsNum())
 		case 'E':
 			goFmt := "%" + flags.String() + width + precision + "E"
-			result.WriteString(fmt.Sprintf(goFmt, value.AsNum()))
+			fmt.Fprintf(&result, goFmt, value.AsNum())
 		case 'f', 'F':
 			goFmt := "%" + flags.String() + width + precision + "f"
-			result.WriteString(fmt.Sprintf(goFmt, value.AsNum()))
+			fmt.Fprintf(&result, goFmt, value.AsNum())
 		case 'g':
 			goFmt := "%" + flags.String() + width + precision + "g"
-			result.WriteString(fmt.Sprintf(goFmt, value.AsNum()))
+			fmt.Fprintf(&result, goFmt, value.AsNum())
 		case 'G':
 			goFmt := "%" + flags.String() + width + precision + "G"
-			result.WriteString(fmt.Sprintf(goFmt, value.AsNum()))
+			fmt.Fprintf(&result, goFmt, value.AsNum())
 		default:
 			result.WriteByte('%')
 			result.WriteByte(specifier)
