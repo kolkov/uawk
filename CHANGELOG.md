@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-15
+
+### Changed
+- Updated coregex to v0.12.8 (from v0.10.6)
+  - **v0.10.7**: UTF-8 fixes, 100% stdlib API compatibility
+  - **v0.10.8**: FindAll 600x faster for anchored patterns
+  - **v0.10.9**: UTF-8 optimization + fuzz bug fixes
+  - **v0.10.10**: ReverseSuffix CharClass Plus fix
+  - **v0.11.0**: UseAnchoredLiteral 32-133x speedup
+  - **v0.11.1**: UseMultilineReverseSuffix 3.5-5.7x speedup
+  - **v0.11.3**: Prefix fast path 319-552x speedup
+  - **v0.11.5**: Fix checkHasWordBoundary catastrophic slowdown
+  - **v0.11.6**: PikeVM 6MB optimization, 1.68x faster than stdlib
+  - **v0.11.7**: FindAll optimization, 1.08x faster than stdlib
+  - **v0.12.0**: Rust-inspired optimizations
+  - **v0.12.3**: Cross-product literal expansion (14x speedup on regexdna)
+  - **v0.12.5**: Non-greedy quantifier fix, ReverseSuffix correctness
+  - **v0.12.6**: BoundedBacktracker span fix + DFA FindAll optimization
+  - **v0.12.7**: PikeVM sparse-dispatch for dot patterns
+  - **v0.12.8**: Streaming ReplaceAll + DFA-first FindSubmatchAt
+- Updated golang.org/x/sys to v0.42.0 (from v0.40.0)
+
 ## [0.2.2] - 2026-01-14
 
 ### Changed
@@ -157,7 +179,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wordcount: -6%
 - filter: -2%
 
-[Unreleased]: https://github.com/kolkov/uawk/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/kolkov/uawk/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/kolkov/uawk/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/kolkov/uawk/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kolkov/uawk/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kolkov/uawk/compare/v0.1.6...v0.2.0
