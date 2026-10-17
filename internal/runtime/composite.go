@@ -244,68 +244,22 @@ func (c *CompositeSearcher) findMatchAtEnd(haystack string) (start, end int, ok 
 	return 0, 0, false
 }
 
-// analyzeComposite checks if a pattern is a composite character class pattern
-// that can use the fast path. Returns nil if not applicable.
-//
-// Supported patterns:
-//   - Sequences of char class + quantifier: [a-zA-Z]+[0-9]+
-//   - Escaped shortcuts: \d+\s+\w+
-//   - Mixed: [a-z]+\d+
-//
-// NOT supported (returns nil):
-//   - Literal characters between classes
-//   - Alternation (|)
-//   - Repetition bounds ({n,m})
-//   - Lookahead/lookbehind
-//   - Groups
-func analyzeComposite(pattern string) *CompositeSearcher {
-	// Handle anchors
-	anchored := false
-	anchorEnd := false
-	p := pattern
+// analyzeComposite returns a CompositeSearcher for patterns made of two or more
+// literal and x* / x+ parts with at least one class, such as [a-zA-Z]+[0-9]+,
+// \d+\s+\w+ or user[0-9]+. It returns nil when the fast path does not apply;
+// see parseFastPattern for the exact rules. awkPattern must already carry
+// dotallPrefix.
+func analyzeComposite(awkPattern string) *CompositeSearcher {
+	return newCompositeSearcher(parseFastPattern(awkPattern))
+}
 
-	// Remove dotall prefix if present (AWK dotall mode)
-	if len(p) >= len(dotallPrefix) && p[:len(dotallPrefix)] == dotallPrefix {
-		p = p[len(dotallPrefix):]
-	}
-
-	if len(p) == 0 {
+func newCompositeSearcher(fp *fastPattern) *CompositeSearcher {
+	if fp == nil || len(fp.parts) < 2 {
+		// A single part is handled by CharClassSearcher.
 		return nil
 	}
-
-	// Check for start anchor
-	if p[0] == '^' {
-		anchored = true
-		p = p[1:]
-	}
-
-	// Check for end anchor
-	if len(p) > 0 && p[len(p)-1] == '$' {
-		numBackslash := 0
-		for i := len(p) - 2; i >= 0 && p[i] == '\\'; i-- {
-			numBackslash++
-		}
-		if numBackslash%2 == 0 {
-			anchorEnd = true
-			p = p[:len(p)-1]
-		}
-	}
-
-	if len(p) == 0 {
-		return nil
-	}
-
-	// Parse sequence of char class parts
-	parts, ok := parseCompositeParts(p)
-	if !ok || len(parts) < 2 {
-		// Need at least 2 parts to be a composite pattern
-		// Single part is handled by analyzeCharClass
-		return nil
-	}
-
-	// Verify at least one char class with quantifier exists (not all literals)
 	hasCharClass := false
-	for _, part := range parts {
+	for _, part := range fp.parts {
 		if part.membership != nil {
 			hasCharClass = true
 			break
@@ -316,34 +270,15 @@ func analyzeComposite(pattern string) *CompositeSearcher {
 		return nil
 	}
 
-	// Check for char class IMMEDIATELY followed by literal where the char class can match the literal.
-	// This requires backtracking which we don't support.
-	// Examples that need backtracking:
-	//   [a-z]+test - plus can match 't', so greedy matching fails
-	//   [a-z.]+\.  - plus can match '.', so greedy matching consumes all dots
-	// Examples that are SAFE:
-	//   [a-z]+\.com - '.' not in [a-z], so [a-z]+ stops at '.', then '.' matches, then 'com' matches
-	//   [a-z]+@test - '@' not in [a-z], so [a-z]+ stops at '@'
-	for i := 0; i < len(parts)-1; i++ {
-		if parts[i].membership != nil && parts[i+1].literal != "" {
-			// Char class immediately followed by literal
-			firstChar := parts[i+1].literal[0]
-			if parts[i].membership[firstChar] {
-				// Char class can match the literal's first char - needs backtracking
-				return nil
-			}
-		}
-	}
-
 	// Build first-char skip filter for unanchored patterns
 	// This optimization allows skipping positions that can't start a match
 	var firstCharFilter *[256]bool
 	var literalPrefix string
 
-	if !anchored {
+	if !fp.anchored {
 		// Collect leading literal characters into literalPrefix
 		var sb strings.Builder
-		for _, part := range parts {
+		for _, part := range fp.parts {
 			if part.literal != "" {
 				sb.WriteString(part.literal)
 			} else {
@@ -356,284 +291,13 @@ func analyzeComposite(pattern string) *CompositeSearcher {
 			}
 		}
 		literalPrefix = sb.String()
-
-		// If we have a literal prefix but no char filter, that's fine
-		// strings.Index will handle the search efficiently
 	}
 
 	return &CompositeSearcher{
-		parts:           parts,
-		anchored:        anchored,
-		anchorEnd:       anchorEnd,
+		parts:           fp.parts,
+		anchored:        fp.anchored,
+		anchorEnd:       fp.anchorEnd,
 		firstCharFilter: firstCharFilter,
 		literalPrefix:   literalPrefix,
 	}
-}
-
-// parseCompositeParts parses a pattern into a sequence of char class parts.
-// Returns nil, false if the pattern contains unsupported elements.
-func parseCompositeParts(p string) ([]*charClassPart, bool) {
-	var parts []*charClassPart
-
-	i := 0
-	for i < len(p) {
-		// Try to parse a char class (bracket or escaped shortcut)
-		part, consumed, ok := parseCharClassPart(p[i:])
-		if !ok {
-			return nil, false
-		}
-		if part == nil {
-			// Unsupported pattern element
-			return nil, false
-		}
-
-		parts = append(parts, part)
-		i += consumed
-	}
-
-	return parts, len(parts) > 0
-}
-
-// parseCharClassPart parses one char class part from the start of p.
-// Returns the part, number of bytes consumed, and whether parsing succeeded.
-// Returns nil part if unsupported element found.
-func parseCharClassPart(p string) (*charClassPart, int, bool) {
-	if len(p) == 0 {
-		return nil, 0, true
-	}
-
-	var table *[256]bool
-	consumed := 0
-
-	// Check for escaped shortcuts (\d, \s, \w, etc.)
-	if p[0] == '\\' && len(p) >= 2 {
-		switch p[1] {
-		case 'd':
-			table = &digitTable
-			consumed = 2
-		case 's':
-			table = &spaceTable
-			consumed = 2
-		case 'w':
-			table = &wordTable
-			consumed = 2
-		case 'D':
-			table = &nonDigitTable
-			consumed = 2
-		case 'S':
-			table = &nonSpaceTable
-			consumed = 2
-		case 'W':
-			table = &nonWordTable
-			consumed = 2
-		default:
-			// Escaped literal character (e.g., \., \@, \\)
-			return &charClassPart{
-				literal: string(p[1]),
-			}, 2, true
-		}
-	} else if p[0] == '[' {
-		// Parse bracket expression
-		var ok bool
-		table, consumed, ok = parseBracketExpression(p)
-		if !ok {
-			return nil, 0, false
-		}
-	} else if p[0] == '.' {
-		// Dot matches any character
-		table = &dotTable
-		consumed = 1
-	} else if isLiteralChar(p[0]) {
-		// Literal character (not a special regex char)
-		return &charClassPart{
-			literal: string(p[0]),
-		}, 1, true
-	} else {
-		// Special regex character without escape - not supported
-		return nil, 0, false
-	}
-
-	// Parse quantifier (only for char classes, not literals)
-	if consumed >= len(p) {
-		// No quantifier - implicit {1,1} but we need + or * for char classes
-		return nil, 0, false
-	}
-
-	minMatch := 0
-	switch p[consumed] {
-	case '+':
-		minMatch = 1
-		consumed++
-	case '*':
-		minMatch = 0
-		consumed++
-	default:
-		// No quantifier or unsupported quantifier
-		return nil, 0, false
-	}
-
-	return &charClassPart{
-		membership: table,
-		minMatch:   minMatch,
-	}, consumed, true
-}
-
-// isLiteralChar returns true if c is a literal character (not a regex special char).
-func isLiteralChar(c byte) bool {
-	switch c {
-	case '.', '*', '+', '?', '[', ']', '(', ')', '{', '}', '|', '^', '$', '\\':
-		return false
-	default:
-		return true
-	}
-}
-
-// parseBracketExpression parses a [...] expression and returns the membership table.
-// Returns pointer to pre-built table if matches known pattern, otherwise builds custom.
-// Returns nil, 0, false if unsupported.
-func parseBracketExpression(p string) (*[256]bool, int, bool) {
-	if len(p) == 0 || p[0] != '[' {
-		return nil, 0, false
-	}
-
-	// Find closing bracket
-	end := 1
-	if end < len(p) && (p[end] == '^' || p[end] == ']') {
-		end++
-	}
-	for end < len(p) && p[end] != ']' {
-		if p[end] == '\\' && end+1 < len(p) {
-			end += 2
-		} else {
-			end++
-		}
-	}
-	if end >= len(p) {
-		return nil, 0, false // Unclosed bracket
-	}
-	end++ // Include closing ]
-
-	bracketExpr := p[:end]
-
-	// Check for known patterns (use pre-built tables)
-	switch bracketExpr {
-	case "[0-9]":
-		return &digitTable, end, true
-	case "[a-z]":
-		return &lowerTable, end, true
-	case "[A-Z]":
-		return &upperTable, end, true
-	case "[a-zA-Z]", "[A-Za-z]":
-		return &alphaTable, end, true
-	}
-
-	// For other bracket expressions, build custom table
-	// Currently we only support simple ranges and character lists
-	table, ok := buildCustomTable(bracketExpr)
-	if !ok {
-		return nil, 0, false
-	}
-
-	return table, end, true
-}
-
-// buildCustomTable builds a membership table for a bracket expression.
-// Returns nil, false if unsupported.
-//
-// Each call returns a new table; there is deliberately no package-level cache.
-// Regexes are compiled concurrently (every -j worker VM compiles its own), and
-// compiled regexes are already cached per VM, so a shared cache would only add
-// synchronization and unbounded growth for dynamic patterns.
-func buildCustomTable(bracketExpr string) (*[256]bool, bool) {
-	if len(bracketExpr) < 2 || bracketExpr[0] != '[' || bracketExpr[len(bracketExpr)-1] != ']' {
-		return nil, false
-	}
-
-	content := bracketExpr[1 : len(bracketExpr)-1]
-	if len(content) == 0 {
-		return nil, false
-	}
-
-	// Check for negation
-	negated := false
-	if content[0] == '^' {
-		negated = true
-		content = content[1:]
-	}
-
-	table := new([256]bool)
-
-	// Parse content
-	i := 0
-	for i < len(content) {
-		// Handle escape sequences
-		if content[i] == '\\' && i+1 < len(content) {
-			switch content[i+1] {
-			case 'd':
-				// Add all digits
-				for c := '0'; c <= '9'; c++ {
-					table[c] = true
-				}
-				i += 2
-				continue
-			case 's':
-				// Add all whitespace
-				table[' '] = true
-				table['\t'] = true
-				table['\n'] = true
-				table['\r'] = true
-				table['\f'] = true
-				table['\v'] = true
-				i += 2
-				continue
-			case 'w':
-				// Add all word chars
-				for c := 'a'; c <= 'z'; c++ {
-					table[c] = true
-				}
-				for c := 'A'; c <= 'Z'; c++ {
-					table[c] = true
-				}
-				for c := '0'; c <= '9'; c++ {
-					table[c] = true
-				}
-				table['_'] = true
-				i += 2
-				continue
-			default:
-				// Escaped literal
-				table[content[i+1]] = true
-				i += 2
-				continue
-			}
-		}
-
-		// Check for range (a-z)
-		if i+2 < len(content) && content[i+1] == '-' && content[i+2] != ']' {
-			start := content[i]
-			end := content[i+2]
-			if start > end {
-				// Invalid range
-				return nil, false
-			}
-			for c := start; c <= end; c++ {
-				table[c] = true
-			}
-			i += 3
-			continue
-		}
-
-		// Single character
-		table[content[i]] = true
-		i++
-	}
-
-	// Apply negation
-	if negated {
-		for i := range table {
-			table[i] = !table[i]
-		}
-	}
-
-	return table, true
 }

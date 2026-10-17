@@ -311,7 +311,7 @@ func TestCharClassSearcherDot(t *testing.T) {
 		{"spaces", "   ", true},
 		{"special", "!@#", true},
 		{"empty", "", false},
-		{"newline only", "\n", false},
+		{"newline only", "\n", true}, // "." matches newline in AWK
 		{"with newline", "abc\ndef", true},
 	}
 
@@ -360,7 +360,8 @@ func TestCharClassSearcherNegatedFindIndex(t *testing.T) {
 		{"nonspace in spaces", `\S+`, "   hello   ", []int{3, 8}},
 		{"nonword in words", `\W+`, "abc...def", []int{3, 6}},
 		{"dot match", `.+`, "hello", []int{0, 5}},
-		{"dot stops at newline", `.+`, "hello\nworld", []int{0, 5}},
+		// In AWK "." matches newline (uawk compiles with (?s)); gawk agrees.
+		{"dot crosses newline", `.+`, "hello\nworld", []int{0, 11}},
 	}
 
 	for _, tt := range tests {

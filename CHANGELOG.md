@@ -38,9 +38,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (e.g. `/[a-f]+[0-9]+/`) were compiled concurrently, as in parallel mode (`-j N`) or when running programs from several
   goroutines. The process could abort with `fatal error: concurrent map read and map write`.
   The shared table cache is removed; it also grew without bound for dynamic regexes.
+- Regex fast paths now return exactly what the regex engine returns. uawk matches simple
+  patterns such as `/[a-z]+/` or `/[a-zA-Z]+[0-9]+/` with byte tables; this shortcut now
+  decides from the parsed regex and is used only when the result is guaranteed to be the
+  same. Wrong in v0.2.3:
+  - `.` did not match a newline: `match("a\nbc", /.+/)` gave `RLENGTH=1` instead of 4
+  - a class followed by an overlapping class missed matches: `"abc" ~ /[a-z]+[a-c]+/` was 0
+  - `x*` did not match the empty string at the start: `match("1a", /[a-z]*/)` gave `RSTART=2`
+    instead of 1, and `"a" ~ /^[0-9]*/` was 0
+  - bracket expressions with non-ASCII characters were read byte by byte:
+    `/[а-я]+[0-9]+/` did not match `р1` and matched `ð1`
+  - `\n`, `\t` and `\D` inside brackets were read as the letters `n`, `t`, `D`, and `\s`
+    also matched `\v`, unlike the regex engine
 - The literal prefilter no longer rejects matching lines. It took optional characters for
   required ones: `"ab" ~ /^abc*/`, `"b_" ~ /^a?[a-z]*/` and `"xyz abc" ~ /xyz.*abcd?/`
   were 0, and `(?i)` was ignored the same way. Literals are now taken from the parsed regex.
+
+### Security
+- A regex with a character range ending at byte 0xFF, such as `[a-\xff]`, made uawk loop
+  forever while compiling it. Dynamic regexes come from input data (`$2 ~ $1`), so input
+  alone could hang uawk.
 
 ## [0.2.3] - 2026-03-15
 
