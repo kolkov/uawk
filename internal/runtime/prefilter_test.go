@@ -19,10 +19,9 @@ func TestExtractLiterals(t *testing.T) {
 			wantPrefix: "error",
 		},
 		{
-			name:    "anchored suffix simple",
-			pattern: "failed$",
-			// Note: suffix extraction from unanchored pattern goes to required
-			wantReq: []string{"failed"},
+			name:       "anchored suffix simple",
+			pattern:    "failed$",
+			wantSuffix: "failed",
 		},
 		{
 			name:       "anchored prefix and suffix",
@@ -56,11 +55,34 @@ func TestExtractLiterals(t *testing.T) {
 			wantPrefix: "www.example.com",
 		},
 		{
-			name:    "escaped dot in suffix - complex escapes go to required",
-			pattern: "test\\.log$",
-			// Complex escape sequences in suffix are conservative - extracted as required
-			wantSuffix: "log",
-			wantReq:    []string{"test."},
+			name:       "escaped dot in suffix",
+			pattern:    "test\\.log$",
+			wantSuffix: "test.log",
+		},
+		// A literal followed by ?, * or {0,n} is optional: it must not become
+		// part of a prefix, suffix or required literal.
+		{
+			name:    "optional first char",
+			pattern: "^a?[a-z]*",
+		},
+		{
+			name:       "optional last char of prefix",
+			pattern:    "^abc*",
+			wantPrefix: "ab",
+		},
+		{
+			name:    "optional last char of required",
+			pattern: ".*abcd?.*",
+			wantReq: []string{"abc"},
+		},
+		{
+			name:    "case-insensitive literal",
+			pattern: "(?i)error",
+		},
+		{
+			name:       "literal inside group is skipped",
+			pattern:    "^x(abc)?y",
+			wantPrefix: "x",
 		},
 		{
 			name:    "no useful literals - only metachar",
@@ -397,42 +419,6 @@ func TestCanReject(t *testing.T) {
 				t.Errorf("CanReject(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestIsMetaChar(t *testing.T) {
-	metas := ".?*+{}[]()^$|"
-	nonMetas := "abcdefghijklmnopqrstuvwxyz0123456789_-=;:'\"<>,/\\"
-
-	for _, c := range metas {
-		if !isMetaChar(byte(c)) {
-			t.Errorf("isMetaChar(%q) = false, want true", c)
-		}
-	}
-
-	for _, c := range nonMetas {
-		if isMetaChar(byte(c)) {
-			t.Errorf("isMetaChar(%q) = true, want false", c)
-		}
-	}
-}
-
-func TestIsLiteralEscape(t *testing.T) {
-	// These characters when escaped represent themselves
-	literals := ".?*+{}[]()^$\\/"
-	// These are special escapes (\d, \s, \w, etc.)
-	nonLiterals := "dswDSWnrtfvbB0123456789"
-
-	for _, c := range literals {
-		if !isLiteralEscape(byte(c)) {
-			t.Errorf("isLiteralEscape(%q) = false, want true", c)
-		}
-	}
-
-	for _, c := range nonLiterals {
-		if isLiteralEscape(byte(c)) {
-			t.Errorf("isLiteralEscape(%q) = true, want false", c)
-		}
 	}
 }
 
