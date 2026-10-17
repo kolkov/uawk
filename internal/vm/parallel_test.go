@@ -341,6 +341,46 @@ func TestParallelExecutor_SingleRecord(t *testing.T) {
 	}
 }
 
+// TestParallelExecutor_CompositeRegex runs a composite regex with a custom
+// bracket expression on many small chunks. Every chunk gets a fresh VM that
+// compiles the regex, so workers compile it concurrently. Run with -race.
+func TestParallelExecutor_CompositeRegex(t *testing.T) {
+	prog := compileAWK(t, `/[a-f]+[0-9]+/ { print $1 }`)
+
+	const lines = 2000
+	var sb strings.Builder
+	want := 0
+	for i := 0; i < lines; i++ {
+		if i%3 == 0 {
+			sb.WriteString("cafe" + strconv.Itoa(i) + " x\n")
+			want++
+		} else {
+			sb.WriteString("zz" + strconv.Itoa(i) + " x\n")
+		}
+	}
+
+	var output bytes.Buffer
+
+	config := DefaultParallelConfig()
+	config.NumWorkers = 8
+	config.ChunkSize = 256
+
+	exec := NewParallelExecutor(prog, DefaultVMConfig(), config)
+	if err := exec.Run(context.Background(), strings.NewReader(sb.String()), &output); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+
+	got := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(got) != want {
+		t.Fatalf("got %d matching lines, want %d", len(got), want)
+	}
+	for _, line := range got {
+		if !strings.HasPrefix(line, "cafe") {
+			t.Fatalf("unexpected output line %q", line)
+		}
+	}
+}
+
 func BenchmarkParallelExecutor_Sum_Small(b *testing.B) {
 	prog := compileAWKBench(b, `{ sum += $1 } END { print sum }`)
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Data race when regexes made of character classes with a custom bracket expression
+  (e.g. `/[a-f]+[0-9]+/`) were compiled concurrently, as in parallel mode (`-j N`) or when running programs from several
+  goroutines. The process could abort with `fatal error: concurrent map read and map write`.
+  The shared table cache is removed; it also grew without bound for dynamic regexes.
+
 ## [0.2.3] - 2026-03-15
 
 ### Changed
