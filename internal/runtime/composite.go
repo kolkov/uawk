@@ -537,18 +537,14 @@ func parseBracketExpression(p string) (*[256]bool, int, bool) {
 	return table, end, true
 }
 
-// customTables caches dynamically built membership tables.
-// Key is the bracket expression string.
-var customTables = make(map[string]*[256]bool)
-
 // buildCustomTable builds a membership table for a bracket expression.
 // Returns nil, false if unsupported.
+//
+// Each call returns a new table; there is deliberately no package-level cache.
+// Regexes are compiled concurrently (every -j worker VM compiles its own), and
+// compiled regexes are already cached per VM, so a shared cache would only add
+// synchronization and unbounded growth for dynamic patterns.
 func buildCustomTable(bracketExpr string) (*[256]bool, bool) {
-	// Check cache first
-	if table, ok := customTables[bracketExpr]; ok {
-		return table, true
-	}
-
 	if len(bracketExpr) < 2 || bracketExpr[0] != '[' || bracketExpr[len(bracketExpr)-1] != ']' {
 		return nil, false
 	}
@@ -638,9 +634,6 @@ func buildCustomTable(bracketExpr string) (*[256]bool, bool) {
 			table[i] = !table[i]
 		}
 	}
-
-	// Cache the table
-	customTables[bracketExpr] = table
 
 	return table, true
 }
