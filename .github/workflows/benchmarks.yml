@@ -104,7 +104,7 @@ jobs:
         fi
 
         echo "> Full results available in workflow artifacts. CI runners have ~10-20% variance." >> comparison.md
-        echo "> For accurate benchmarks, run locally: \`bash scripts/pre-release-check.sh\`" >> comparison.md
+        echo "> For accurate benchmarks, run locally: \`go test -bench=. -benchmem -count=10 ./internal/...\`" >> comparison.md
 
         cat comparison.md
 

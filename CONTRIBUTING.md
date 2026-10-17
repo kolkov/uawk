@@ -17,9 +17,6 @@ golangci-lint run
 
 # Build CLI
 go build -o uawk.exe ./cmd/uawk
-
-# Run pre-release checks
-bash scripts/pre-release-check.sh
 ```
 
 ## Development Workflow
@@ -132,11 +129,6 @@ Files: internal/vm/vm.go
    go test -race ./...
    ```
 
-5. **All-in-one** (use pre-release script):
-   ```bash
-   bash scripts/pre-release-check.sh
-   ```
-
 ### Pull Request Requirements
 
 - [ ] Code is formatted (`go fmt ./...`)
@@ -181,7 +173,7 @@ uawk/
 3. Create feature branch from `main`
 4. Implement feature with tests
 5. Update documentation
-6. Run quality checks (`bash scripts/pre-release-check.sh`)
+6. Run quality checks (see [Before Committing](#before-committing))
 7. Create pull request
 8. Wait for code review
 9. Address feedback

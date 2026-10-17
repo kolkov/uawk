@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated golang.org/x/sys to v0.49.0 (from v0.42.0, indirect)
 - CI and release workflows use Go 1.27
 
+### Removed
+- `scripts/pre-release-check.sh` — quality checks are listed in CONTRIBUTING.md
+
 ### Fixed
 - Regex matching on strings that contain newlines now agrees with gawk (coregex v0.12.30).
   Wrong in v0.2.3: `gsub(/.*\.txt/, "<>")` on `"q.txt\nz\nb.txt"` made 2 replacements
