@@ -91,7 +91,7 @@ cd uawk
 go build -o uawk ./cmd/uawk
 ```
 
-Requires Go 1.25+.
+Requires Go 1.27+.
 
 ## Architecture
 

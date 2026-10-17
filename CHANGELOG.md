@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Go 1.27.1+ is now required** (was 1.25.4): coregex v0.12.25+ requires it
+- Updated coregex to v0.12.30 (from v0.12.8)
+  - **v0.12.21**: Tagged start states, DFA multiline `$` fix, 1100x fewer mallocs in FindAll
+  - **v0.12.22**: Lazy memory architecture, per-pattern memory overhead 16x → ~3x vs stdlib
+  - **v0.12.26**: Compile-time DoS fix (2^depth blowup in literal extractor), Unicode `(?i)`
+    case folding, UTF-8 empty match advancement, `CompilePOSIX` semantics
+  - **v0.12.27**: Anchored alternation false results fix (`^x(a|bc)`)
+  - **v0.12.28**: FindAll/ReplaceAll/Split O(n²) → linear for `$`-anchored patterns,
+    negated classes match runes instead of bytes, invalid UTF-8 matches as U+FFFD
+  - **v0.12.29**: Concurrent use of one compiled `Regex` no longer returns wrong results or panics
+  - **v0.12.30**: `(?s).*X` patterns start at the search start and end after the last `X`
+    across newlines, as in stdlib ([coregex#191](https://github.com/coregx/coregex/issues/191),
+    a regression in v0.12.15–v0.12.29); leftmost match for suffix-set patterns
+- Updated github.com/coregx/ahocorasick to v0.3.1 (from v0.1.0, indirect)
+- Updated golang.org/x/sys to v0.49.0 (from v0.42.0, indirect)
+- CI and release workflows use Go 1.27
+
 ### Fixed
+- Regex matching on strings that contain newlines now agrees with gawk (coregex v0.12.30).
+  Wrong in v0.2.3: `gsub(/.*\.txt/, "<>")` on `"q.txt\nz\nb.txt"` made 2 replacements
+  instead of 1; `match("a.txt b.log", /[a-z]+\.(txt|log)/)` found the second word
+  (`RSTART=7` instead of 1); `match("xbaz", /.*(foo|bar)baz/)` and `sub()` with that
+  regex matched although `~` correctly did not.
 - Data race when regexes made of character classes with a custom bracket expression
   (e.g. `/[a-f]+[0-9]+/`) were compiled concurrently, as in parallel mode (`-j N`) or when running programs from several
   goroutines. The process could abort with `fatal error: concurrent map read and map write`.
