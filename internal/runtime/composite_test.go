@@ -405,7 +405,7 @@ func TestCompositeMatchingCorrectness(t *testing.T) {
 	}
 }
 
-func TestBuildCustomTable(t *testing.T) {
+func TestBracketTable(t *testing.T) {
 	tests := []struct {
 		name    string
 		bracket string
@@ -417,14 +417,19 @@ func TestBuildCustomTable(t *testing.T) {
 		{"mixed", "[a-cx-z]", "abcxyz", "defABC123"},
 		{"digit_escape", `[\d]`, "0123456789", "abcABC"},
 		{"negated", "[^a-z]", "ABC123!@#", "abcxyz"},
+		// Escapes inside a class follow Go syntax, as in coregex.
+		{"newline_escape", `[\n\t]`, "\n\t", "nt"},
+		{"space_escape", `[\s]`, " \t\n\r\f", "\v"},
+		{"negated_digit_escape", `[\D]`, "abcD!", "0123456789"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			table, ok := buildCustomTable(tt.bracket)
-			if !ok {
-				t.Fatalf("buildCustomTable(%q) failed", tt.bracket)
+			fp := parseFastPattern(dotallPrefix + tt.bracket + "+")
+			if fp == nil || len(fp.parts) != 1 || fp.parts[0].membership == nil {
+				t.Fatalf("parseFastPattern(%q) did not return a class part", tt.bracket+"+")
 			}
+			table := fp.parts[0].membership
 
 			for _, c := range tt.chars {
 				if !table[byte(c)] {

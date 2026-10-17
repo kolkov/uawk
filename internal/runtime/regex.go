@@ -59,20 +59,7 @@ func CompileWithConfig(pattern string, config RegexConfig) (*Regex, error) {
 	// Prepend dotallPrefix for AWK dotall semantics: . matches \n
 	awkPattern := dotallPrefix + pattern
 
-	// Try fast path for simple character class patterns
-	charClass := analyzeCharClass(awkPattern)
-
-	// Try composite fast path (e.g., [a-zA-Z]+[0-9]+)
-	var composite *CompositeSearcher
-	if charClass == nil {
-		composite = analyzeComposite(awkPattern)
-	}
-
-	// Extract literals for prefiltering (only if no other fast path)
-	var literals *LiteralInfo
-	if charClass == nil && composite == nil {
-		literals = extractLiterals(awkPattern)
-	}
+	charClass, composite, literals := selectFastPaths(awkPattern)
 
 	// Still compile the full regex as fallback and for complex operations
 	re, err := coregex.Compile(awkPattern)
@@ -94,6 +81,27 @@ func CompileWithConfig(pattern string, config RegexConfig) (*Regex, error) {
 		literals:  literals,
 		posix:     config.POSIX,
 	}, nil
+}
+
+// selectFastPaths picks the fast path for awkPattern (already prefixed with
+// dotallPrefix): a char-class or composite searcher, or else a literal
+// prefilter. All of them are used only where they provably agree with the
+// full regex (see fastpath.go and extractLiterals).
+func selectFastPaths(awkPattern string) (*CharClassSearcher, *CompositeSearcher, *LiteralInfo) {
+	fp := parseFastPattern(awkPattern)
+
+	// Try fast path for simple character class patterns
+	if charClass := newCharClassSearcher(fp); charClass != nil {
+		return charClass, nil, nil
+	}
+
+	// Try composite fast path (e.g., [a-zA-Z]+[0-9]+)
+	if composite := newCompositeSearcher(fp); composite != nil {
+		return nil, composite, nil
+	}
+
+	// Extract literals for prefiltering (only if no other fast path)
+	return nil, nil, extractLiterals(awkPattern)
 }
 
 // MustCompile creates a Regex, panicking on error.
